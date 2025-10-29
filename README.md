@@ -26,7 +26,7 @@ A comprehensive Windows desktop wallpaper suite that generates and manages dynam
 
 ## 🚀 Quick Start
 
-1. **Download** the latest `Install.exe` from the [Releases](../../releases) page
+1. **Download** the latest `Install.exe` from the [Releases](https://github.com/PaulStSmith/WorldMapWallpaper/releases) page
 2. **Run installer** as administrator to set up the complete suite
 3. **Configure settings** using the modern settings interface (automatically launched)
 4. **Enjoy** your dynamic wallpaper that updates automatically
