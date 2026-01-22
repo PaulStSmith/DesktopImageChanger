@@ -68,13 +68,13 @@ WorldMapWallpaper.exe --settings
 
 ## 📍 File Locations
 
-| Component | Location |
-|-----------|----------|
-| **Application** | `C:\Program Files\WorldMapWallpaper\` |
-| **Generated wallpapers** | `%USERPROFILE%\Pictures\WorldMap01.jpg` / `WorldMap02.jpg` |
-| **Application logs** | `C:\Program Files\WorldMapWallpaper\log\WorldMapWallpaper.log` |
-| **TLE cache** | `%APPDATA%\WorldMapWallpaper\iss_tle_cache.json` |
-| **Settings storage** | Windows Registry (application-managed) |
+| Component                | Location                                                       |
+|--------------------------|----------------------------------------------------------------|
+| **Application**          | `C:\Program Files\WorldMapWallpaper\`                          |
+| **Generated wallpapers** | `%USERPROFILE%\Pictures\WorldMap01.jpg` / `WorldMap02.jpg`     |
+| **Application logs**     | `C:\Program Files\WorldMapWallpaper\log\WorldMapWallpaper.log` |
+| **TLE cache**            | `%APPDATA%\WorldMapWallpaper\iss_tle_cache.json`               |
+| **Settings storage**     | Windows Registry (application-managed)                         |
 
 ## 🔧 Advanced Configuration
 
@@ -164,3 +164,4 @@ Contributions are welcome! Please feel free to submit pull requests or open issu
 ---
 
 *WorldMapWallpaper - Bringing the world to your desktop, one pixel at a time.* 🌍✨
+

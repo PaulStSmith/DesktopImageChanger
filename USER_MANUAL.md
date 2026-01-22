@@ -152,21 +152,21 @@ The application shows helpful balloon notifications for:
 
 ### Update Frequency Details
 
-| Frequency | Best For | Description |
-|-----------|----------|-------------|
-| **5 minutes** | Maximum accuracy | Perfect terminator line tracking, most current ISS position |
-| **10 minutes** | Balanced performance | Good accuracy with reasonable resource usage |
-| **15 minutes** | Standard use | Recommended for most users |
-| **30 minutes** | Light usage | Good for older computers or minimal updates |
-| **1 hour** | Minimal updates | Basic day/night cycle tracking |
+| Frequency      | Best For             | Description                                                 |
+|----------------|----------------------|-------------------------------------------------------------|
+| **5 minutes**  | Maximum accuracy     | Perfect terminator line tracking, most current ISS position |
+| **10 minutes** | Balanced performance | Good accuracy with reasonable resource usage                |
+| **15 minutes** | Standard use         | Recommended for most users                                  |
+| **30 minutes** | Light usage          | Good for older computers or minimal updates                 |
+| **1 hour**     | Minimal updates      | Basic day/night cycle tracking                              |
 
 ### Visual Element Impact
 
-| Element | Performance Impact | Visual Benefit |
-|---------|-------------------|----------------|
-| **ISS Tracking** | Low | High - shows real space activity |
-| **Time Zone Clocks** | Medium | High - practical world time reference |
-| **Political Boundaries** | Low | Medium - geographical context |
+| Element                  | Performance Impact  | Visual Benefit                        |
+|--------------------------|---------------------|---------------------------------------|
+| **ISS Tracking**         | Low                 | High - shows real space activity      |
+| **Time Zone Clocks**     | Medium              | High - practical world time reference |
+| **Political Boundaries** | Low                 | Medium - geographical context         |
 
 ### Automatic Wallpaper Monitoring
 
@@ -276,14 +276,14 @@ The application creates a sophisticated scheduled task with multiple triggers:
 
 ### File Locations
 
-| Component | Location |
-|-----------|----------|
-| **Main Application** | `C:\Program Files\WorldMapWallpaper\WorldMapWallpaper.exe` |
-| **Settings App** | `C:\Program Files\WorldMapWallpaper\WorldMapWallpaper.Settings.exe` |
-| **Configuration** | Windows Registry + Application Settings |
-| **Log Files** | `C:\Program Files\WorldMapWallpaper\log\` |
-| **TLE Data Cache** | `%APPDATA%\WorldMapWallpaper\iss_tle_cache.json` |
-| **Generated Wallpapers** | `%USERPROFILE%\Pictures\` (WorldMap01.jpg, WorldMap02.jpg) |
+| Component                | Location                                                            |
+|--------------------------|---------------------------------------------------------------------|
+| **Main Application**     | `C:\Program Files\WorldMapWallpaper\WorldMapWallpaper.exe`          |
+| **Settings App**         | `C:\Program Files\WorldMapWallpaper\WorldMapWallpaper.Settings.exe` |
+| **Configuration**        | Windows Registry + Application Settings                             |
+| **Log Files**            | `C:\Program Files\WorldMapWallpaper\log\`                           |
+| **TLE Data Cache**       | `%APPDATA%\WorldMapWallpaper\iss_tle_cache.json`                    |
+| **Generated Wallpapers** | `%USERPROFILE%\Pictures\` (WorldMap01.jpg, WorldMap02.jpg)          |
 
 ---
 

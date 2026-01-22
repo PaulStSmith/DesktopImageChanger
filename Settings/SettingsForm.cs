@@ -76,8 +76,6 @@ public partial class SettingsForm : Form
     /// <param name="minimizeToTray">If true, the form starts minimized to the system tray; otherwise, it appears normally.</param>
     public SettingsForm(bool minimizeToTray = false)
     {
-        _minimizeToTray = minimizeToTray;
-        
         // Get current theme before initializing components
         _colorScheme = ThemeManager.GetCurrentColorScheme();
         
@@ -89,7 +87,7 @@ public partial class SettingsForm : Form
         LoadSettings();
         StartWallpaperMonitoring();
         
-        if (_minimizeToTray)
+        if (minimizeToTray)
         {
             this.WindowState = FormWindowState.Minimized;
             this.ShowInTaskbar = false;
