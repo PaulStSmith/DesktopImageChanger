@@ -2,7 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased] - 2025-10-05
+## [Unreleased]
+
+### Changed
+- **Simplify and consolidate MSBuild detection in build script**
+  - Moved MSBuild detection to script initialization (runs once at startup)
+  - Eliminated duplicate detection code from `:CompileSolution` and `:PublishApplication`
+  - VS Developer environment now set up once at the start
+  - Now supports Visual Studio 2026 and 2022 only (removed VS2019, VS2017, and .NET Framework fallbacks)
+  - Updated error message to clearly indicate VS2022 or later is required
+  - Removed fallback to MSBuild in PATH for more predictable builds
+
+### Fixed
+- **Fix publish failure due to missing ReadyToRun runtime packages**
+  - Added dedicated restore step in `:PublishApplication` with `PublishReadyToRun=true`
+  - Resolves NETSDK1094 error when publishing with ReadyToRun optimization enabled
+
+## [1.5.25.1005] - 2025-10-05
 
 ### Added
 - **Implement professional SGP4-based ISS tracking with TLE data**

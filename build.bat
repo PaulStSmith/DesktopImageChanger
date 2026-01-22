@@ -51,6 +51,37 @@ REM Get the current directory
 set "PROJECT_DIR=%~dp0"
 cd /d "%PROJECT_DIR%"
 
+REM Find MSBuild once at the start (used by both compile and publish)
+echo Searching for MSBuild...
+set "MSBUILD_PATH="
+set "VSDEVCMD="
+:: '18' is the path for VS2026, '2022' for VS2022
+:: Why Microsoft changed the naming convention is beyond me...
+for %%a in (18 2022) do (
+    for %%e in (Enterprise Professional Community) do (
+        if exist "C:\Program Files\Microsoft Visual Studio\%%a\%%e\MSBuild\Current\Bin\MSBuild.exe" (
+            set "VSDEVCMD=C:\Program Files\Microsoft Visual Studio\%%a\%%e\Common7\Tools\VsDevCmd.bat"
+            set "MSBUILD_PATH=C:\Program Files\Microsoft Visual Studio\%%a\%%e\MSBuild\Current\Bin\MSBuild.exe"
+            goto :found_msbuild
+        )
+    )
+)
+echo ERROR: Could not find a compatible Visual Studio installation with MSBuild.
+echo Please install Visual Studio 2022 or later with .NET desktop development workload.
+exit /b 1
+
+:found_msbuild
+echo Found MSBuild: !MSBUILD_PATH!
+
+REM Set up VS Developer environment if not already set
+if not defined VSINSTALLDIR (
+    if exist "!VSDEVCMD!" (
+        echo Setting up Visual Studio Developer environment...
+        call "!VSDEVCMD!" -no_logo
+    )
+)
+echo.
+
 echo Building and publishing WorldMapWallpaper...
 echo.
 
@@ -295,87 +326,6 @@ if "%PROJECT_FILE%"=="" (
     exit /b 1
 )
 
-echo Searching for MSBuild...
-
-:: First, try to set up VS Developer environment if not already set
-if not defined VSINSTALLDIR (
-    echo Setting up Visual Studio Developer environment...
-    for %%e in (Enterprise Professional Community) do (
-        if exist "C:\Program Files\Microsoft Visual Studio\2022\%%e\Common7\Tools\VsDevCmd.bat" (
-            echo Found VS2022 %%e - setting up environment...
-            call "C:\Program Files\Microsoft Visual Studio\2022\%%e\Common7\Tools\VsDevCmd.bat" -no_logo
-            goto :env_setup_done
-        )
-    )
-    echo Warning: Could not find VS Developer Command Prompt setup
-)
-:env_setup_done
-
-:: Try to find Visual Studio 2022 installation
-set VS2022_PATH=
-for %%e in (Enterprise Professional Community) do (
-    if exist "C:\Program Files\Microsoft Visual Studio\2022\%%e\MSBuild\Current\Bin\MSBuild.exe" (
-        set VS2022_PATH=C:\Program Files\Microsoft Visual Studio\2022\%%e\MSBuild\Current\Bin\MSBuild.exe
-        goto :found_msbuild
-    )
-)
-
-:: Try to find Visual Studio 2019 installation
-set VS2019_PATH=
-for %%e in (Enterprise Professional Community) do (
-    if exist "C:\Program Files (x86)\Microsoft Visual Studio\2019\%%e\MSBuild\Current\Bin\MSBuild.exe" (
-        set VS2019_PATH=C:\Program Files (x86)\Microsoft Visual Studio\2019\%%e\MSBuild\Current\Bin\MSBuild.exe
-        goto :found_msbuild
-    )
-)
-
-:: Try to find Visual Studio 2017 installation
-set VS2017_PATH=
-for %%e in (Enterprise Professional Community) do (
-    if exist "C:\Program Files (x86)\Microsoft Visual Studio\2017\%%e\MSBuild\15.0\Bin\MSBuild.exe" (
-        set VS2017_PATH=C:\Program Files (x86)\Microsoft Visual Studio\2017\%%e\MSBuild\15.0\Bin\MSBuild.exe
-        goto :found_msbuild
-    )
-)
-
-:: Try to find older MSBuild from .NET Framework
-set NETFX_MSBUILD=
-for %%v in (4.0.30319 14.0 12.0) do (
-    if exist "C:\Windows\Microsoft.NET\Framework\v%%v\MSBuild.exe" (
-        set NETFX_MSBUILD=C:\Windows\Microsoft.NET\Framework\v%%v\MSBuild.exe
-        goto :found_msbuild
-    )
-)
-
-:: Try to find MSBuild in the path
-where msbuild >nul 2>&1
-if %ERRORLEVEL% equ 0 (
-    set MSBUILD_PATH=msbuild
-    goto :found_msbuild
-)
-
-echo ERROR: MSBuild not found. Please install Visual Studio or .NET Framework SDK.
-exit /b 1
-
-:found_msbuild
-if defined VS2022_PATH (
-    echo Found MSBuild from Visual Studio 2022
-    set MSBUILD_PATH=!VS2022_PATH!
-) else if defined VS2019_PATH (
-    echo Found MSBuild from Visual Studio 2019
-    set MSBUILD_PATH=!VS2019_PATH!
-) else if defined VS2017_PATH (
-    echo Found MSBuild from Visual Studio 2017
-    set MSBUILD_PATH=!VS2017_PATH!
-) else if defined NETFX_MSBUILD (
-    echo Found MSBuild from .NET Framework
-    set MSBUILD_PATH=!NETFX_MSBUILD!
-) else (
-    echo Found MSBuild in PATH
-)
-
-echo Using MSBuild: !MSBUILD_PATH!
-
 echo Running NuGet restore...
 "!MSBUILD_PATH!" "%PROJECT_FILE%" /t:Restore /p:Configuration=!cfg! /p:Platform="Any CPU" /p:RuntimeIdentifiers=win-x64
 if %ERRORLEVEL% neq 0 (
@@ -398,46 +348,26 @@ exit /b 0
 :PublishApplication
 echo Publishing with MSBuild...
 
-REM Find MSBuild (reuse logic from CompileSolution)
-set MSBUILD_PATH=
-for %%e in (Enterprise Professional Community) do (
-    if exist "C:\Program Files\Microsoft Visual Studio\2022\%%e\MSBuild\Current\Bin\MSBuild.exe" (
-        set MSBUILD_PATH=C:\Program Files\Microsoft Visual Studio\2022\%%e\MSBuild\Current\Bin\MSBuild.exe
-        goto :publish_found_msbuild
-    )
-)
-
-for %%e in (Enterprise Professional Community) do (
-    if exist "C:\Program Files (x86)\Microsoft Visual Studio\2019\%%e\MSBuild\Current\Bin\MSBuild.exe" (
-        set MSBUILD_PATH=C:\Program Files (x86)\Microsoft Visual Studio\2019\%%e\MSBuild\Current\Bin\MSBuild.exe
-        goto :publish_found_msbuild
-    )
-)
-
-where msbuild >nul 2>&1
-if %ERRORLEVEL% equ 0 (
-    set MSBUILD_PATH=msbuild
-    goto :publish_found_msbuild
-)
-
-echo ERROR: MSBuild not found for publishing.
-exit /b 1
-
-:publish_found_msbuild
-echo Using MSBuild for publish: !MSBUILD_PATH!
-
 REM Use MSBuild to publish with the profile - find the main project
 cd /d "%PROJECT_DIR%"
 if exist "ImagePainter\WorldMapWallpaper.csproj" (
-    echo Publishing ImagePainter\WorldMapWallpaper.csproj...
-    "!MSBUILD_PATH!" ImagePainter\WorldMapWallpaper.csproj /p:PublishProfile=Publish_x64 /p:Configuration=!cfg! /t:Publish /v:m
+    set "PUBLISH_PROJECT=ImagePainter\WorldMapWallpaper.csproj"
 ) else if exist "WorldMapWallpaper.csproj" (
-    echo Publishing WorldMapWallpaper.csproj...
-    "!MSBUILD_PATH!" WorldMapWallpaper.csproj /p:PublishProfile=Publish_x64 /p:Configuration=!cfg! /t:Publish /v:m
+    set "PUBLISH_PROJECT=WorldMapWallpaper.csproj"
 ) else (
     echo ERROR: Could not find WorldMapWallpaper.csproj
     exit /b 1
 )
+
+echo Restoring packages for publish (with ReadyToRun support)...
+"!MSBUILD_PATH!" "!PUBLISH_PROJECT!" /t:Restore /p:Configuration=!cfg! /p:RuntimeIdentifier=win-x64 /p:PublishReadyToRun=true /v:m
+if !ERRORLEVEL! neq 0 (
+    echo ERROR: Restore for publish failed.
+    exit /b 1
+)
+
+echo Publishing !PUBLISH_PROJECT!...
+"!MSBUILD_PATH!" "!PUBLISH_PROJECT!" /p:PublishProfile=Publish_x64 /p:Configuration=!cfg! /t:Publish /v:m
 exit /b %ERRORLEVEL%
 
 :generate_release_notes
@@ -505,7 +435,6 @@ echo !RELEASE_NOTES!
 echo =====================================
 
 exit /b 0
-
 
 :delFile
 if exist "%~1" (
