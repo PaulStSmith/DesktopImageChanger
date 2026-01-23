@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Resolution Accommodation feature for different screen resolutions**
+  - Added new `ResolutionMode` setting with three options:
+    - `None` - Keep original 1920x1080 resolution (default, current behavior)
+    - `Fit` - Scale to fit screen while preserving 16:9 aspect ratio (adds letterboxing/pillarboxing)
+    - `Stretch` - Scale to fill entire screen (may distort aspect ratio)
+  - Auto-detects primary monitor resolution using Windows API
+  - Optional custom resolution override (set width and height in settings)
+  - High-quality scaling using bicubic interpolation
+  - Resolution scaling applied as final step before saving wallpaper
+  - New "Resolution Settings" section in Settings UI with:
+    - Resolution mode dropdown
+    - Detected screen resolution display
+    - Custom width/height input fields
+
 ### Changed
 - **Simplify and consolidate MSBuild detection in build script**
   - Moved MSBuild detection to script initialization (runs once at startup)
