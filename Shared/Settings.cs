@@ -56,6 +56,33 @@ public static class Settings
     }
 
     /// <summary>
+    /// Gets or sets the resolution scaling mode for the wallpaper.
+    /// </summary>
+    public static ResolutionMode ResolutionMode
+    {
+        get => GetEnumSetting("ResolutionMode", ResolutionMode.None);
+        set => SetEnumSetting("ResolutionMode", value);
+    }
+
+    /// <summary>
+    /// Gets or sets the custom resolution width (0 = use auto-detect from screen).
+    /// </summary>
+    public static int CustomResolutionWidth
+    {
+        get => GetIntSetting("CustomResolutionWidth", 0);
+        set => SetIntSetting("CustomResolutionWidth", value);
+    }
+
+    /// <summary>
+    /// Gets or sets the custom resolution height (0 = use auto-detect from screen).
+    /// </summary>
+    public static int CustomResolutionHeight
+    {
+        get => GetIntSetting("CustomResolutionHeight", 0);
+        set => SetIntSetting("CustomResolutionHeight", value);
+    }
+
+    /// <summary>
     /// Gets a boolean setting from the registry.
     /// </summary>
     /// <param name="name">The setting name.</param>
@@ -134,6 +161,44 @@ public static class Settings
     }
 
     /// <summary>
+    /// Gets an integer setting from the registry.
+    /// </summary>
+    /// <param name="name">The setting name.</param>
+    /// <param name="defaultValue">The default value if the setting doesn't exist.</param>
+    /// <returns>The setting value.</returns>
+    private static int GetIntSetting(string name, int defaultValue)
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(RegistryKeyPath);
+            var value = key?.GetValue(name)?.ToString();
+            return int.TryParse(value, out var result) ? result : defaultValue;
+        }
+        catch
+        {
+            return defaultValue;
+        }
+    }
+
+    /// <summary>
+    /// Sets an integer setting in the registry.
+    /// </summary>
+    /// <param name="name">The setting name.</param>
+    /// <param name="value">The setting value.</param>
+    private static void SetIntSetting(string name, int value)
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.CreateSubKey(RegistryKeyPath);
+            key?.SetValue(name, value.ToString());
+        }
+        catch
+        {
+            // Silently fail - settings will use defaults
+        }
+    }
+
+    /// <summary>
     /// Resets all settings to their default values.
     /// </summary>
     public static void ResetToDefaults()
@@ -143,5 +208,8 @@ public static class Settings
         ShowPoliticalMap = true;
         UpdateInterval = UpdateInterval.Hourly;
         IsActive = true;
+        ResolutionMode = ResolutionMode.None;
+        CustomResolutionWidth = 0;
+        CustomResolutionHeight = 0;
     }
 }

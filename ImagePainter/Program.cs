@@ -361,6 +361,9 @@ namespace WorldMapWallpaper
                     finalImage = night;
                 }
 
+                // Apply resolution scaling (LAST step before saving)
+                finalImage = ResolutionScaler.ScaleImage(finalImage, log);
+
                 // Save and set wallpaper
                 log.Info($"Saving the new wallpaper to \"{fileName}\".");
                 finalImage.Save(fileName);

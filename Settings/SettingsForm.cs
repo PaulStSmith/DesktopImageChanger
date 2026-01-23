@@ -71,6 +71,26 @@ public partial class SettingsForm : Form
     private Label _taskStatusLabel = null!;
 
     /// <summary>
+    /// Combo box for selecting the resolution scaling mode.
+    /// </summary>
+    private ComboBox _resolutionModeCombo = null!;
+
+    /// <summary>
+    /// Text box for custom resolution width.
+    /// </summary>
+    private TextBox _customWidthTextBox = null!;
+
+    /// <summary>
+    /// Text box for custom resolution height.
+    /// </summary>
+    private TextBox _customHeightTextBox = null!;
+
+    /// <summary>
+    /// Label showing detected screen resolution.
+    /// </summary>
+    private Label _detectedResolutionLabel = null!;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="SettingsForm"/> class.
     /// </summary>
     /// <param name="minimizeToTray">If true, the form starts minimized to the system tray; otherwise, it appears normally.</param>
@@ -267,6 +287,119 @@ public partial class SettingsForm : Form
 
         currentY += 120;
 
+        // Resolution Settings Group
+        var resolutionGroup = new GroupBox
+        {
+            Text = "Resolution Settings",
+            Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+            Location = new Point(padding, currentY),
+            Size = new Size(this.ClientSize.Width - 2 * padding, 130),
+            ForeColor = _colorScheme.PrimaryTextColor,
+            BackColor = _colorScheme.GroupBoxBackColor
+        };
+        this.Controls.Add(resolutionGroup);
+
+        var resolutionModeLabel = new Label
+        {
+            Text = "Resolution Mode:",
+            Location = new Point(15, 25),
+            Size = new Size(110, 23),
+            Font = new Font("Segoe UI", 9F),
+            ForeColor = _colorScheme.PrimaryTextColor,
+            BackColor = Color.Transparent
+        };
+        resolutionGroup.Controls.Add(resolutionModeLabel);
+
+        _resolutionModeCombo = new ComboBox
+        {
+            Location = new Point(130, 22),
+            Size = new Size(resolutionGroup.Width - 145, 23),
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Font = new Font("Segoe UI", 9F),
+            BackColor = _colorScheme.SurfaceColor,
+            ForeColor = _colorScheme.PrimaryTextColor
+        };
+
+        // Populate resolution mode combo box
+        foreach (var mode in Enum.GetValues<ResolutionMode>())
+        {
+            _resolutionModeCombo.Items.Add(new ComboBoxItem(mode.ToDisplayString(), mode));
+        }
+        _resolutionModeCombo.SelectedIndexChanged += OnResolutionModeChanged;
+        resolutionGroup.Controls.Add(_resolutionModeCombo);
+
+        // Detected resolution display
+        _detectedResolutionLabel = new Label
+        {
+            Text = GetDetectedResolutionText(),
+            Location = new Point(15, 52),
+            Size = new Size(resolutionGroup.Width - 30, 15),
+            Font = new Font("Segoe UI", 8F),
+            ForeColor = _colorScheme.SecondaryTextColor,
+            BackColor = Color.Transparent
+        };
+        resolutionGroup.Controls.Add(_detectedResolutionLabel);
+
+        // Custom resolution inputs
+        var customResLabel = new Label
+        {
+            Text = "Custom (0 = auto):",
+            Location = new Point(15, 75),
+            Size = new Size(110, 23),
+            Font = new Font("Segoe UI", 9F),
+            ForeColor = _colorScheme.PrimaryTextColor,
+            BackColor = Color.Transparent
+        };
+        resolutionGroup.Controls.Add(customResLabel);
+
+        _customWidthTextBox = new TextBox
+        {
+            Location = new Point(130, 72),
+            Size = new Size(70, 23),
+            Font = new Font("Segoe UI", 9F),
+            BackColor = _colorScheme.SurfaceColor,
+            ForeColor = _colorScheme.PrimaryTextColor,
+            Text = "0"
+        };
+        _customWidthTextBox.TextChanged += OnCustomResolutionChanged;
+        resolutionGroup.Controls.Add(_customWidthTextBox);
+
+        var xLabel = new Label
+        {
+            Text = "x",
+            Location = new Point(205, 75),
+            Size = new Size(15, 23),
+            Font = new Font("Segoe UI", 9F),
+            ForeColor = _colorScheme.PrimaryTextColor,
+            BackColor = Color.Transparent
+        };
+        resolutionGroup.Controls.Add(xLabel);
+
+        _customHeightTextBox = new TextBox
+        {
+            Location = new Point(220, 72),
+            Size = new Size(70, 23),
+            Font = new Font("Segoe UI", 9F),
+            BackColor = _colorScheme.SurfaceColor,
+            ForeColor = _colorScheme.PrimaryTextColor,
+            Text = "0"
+        };
+        _customHeightTextBox.TextChanged += OnCustomResolutionChanged;
+        resolutionGroup.Controls.Add(_customHeightTextBox);
+
+        var customHelpLabel = new Label
+        {
+            Text = "Set both to 0 to use detected screen resolution",
+            Location = new Point(15, 100),
+            Size = new Size(resolutionGroup.Width - 30, 15),
+            Font = new Font("Segoe UI", 8F),
+            ForeColor = _colorScheme.SecondaryTextColor,
+            BackColor = Color.Transparent
+        };
+        resolutionGroup.Controls.Add(customHelpLabel);
+
+        currentY += 150;
+
         // Preview Button
         _previewButton = new Button
         {
@@ -444,13 +577,30 @@ public partial class SettingsForm : Form
         var currentInterval = Shared.Settings.UpdateInterval;
         for (var i = 0; i < _updateIntervalCombo.Items.Count; i++)
         {
-            if (_updateIntervalCombo.Items[i] is ComboBoxItem item && 
+            if (_updateIntervalCombo.Items[i] is ComboBoxItem item &&
                 item.Value.Equals(currentInterval))
             {
                 _updateIntervalCombo.SelectedIndex = i;
                 break;
             }
         }
+
+        // Load resolution settings
+        var currentResMode = Shared.Settings.ResolutionMode;
+        for (var i = 0; i < _resolutionModeCombo.Items.Count; i++)
+        {
+            if (_resolutionModeCombo.Items[i] is ComboBoxItem item &&
+                item.Value.Equals(currentResMode))
+            {
+                _resolutionModeCombo.SelectedIndex = i;
+                break;
+            }
+        }
+
+        _customWidthTextBox.Text = Shared.Settings.CustomResolutionWidth.ToString();
+        _customHeightTextBox.Text = Shared.Settings.CustomResolutionHeight.ToString();
+
+        UpdateCustomResolutionState();
     }
 
     /// <summary>
@@ -466,6 +616,22 @@ public partial class SettingsForm : Form
         {
             Shared.Settings.UpdateInterval = (UpdateInterval)item.Value;
             TaskManager.UpdateTaskSchedule((UpdateInterval)item.Value);
+        }
+
+        // Save resolution settings
+        if (_resolutionModeCombo.SelectedItem is ComboBoxItem resItem)
+        {
+            Shared.Settings.ResolutionMode = (ResolutionMode)resItem.Value;
+        }
+
+        if (int.TryParse(_customWidthTextBox.Text, out var width))
+        {
+            Shared.Settings.CustomResolutionWidth = Math.Max(0, width);
+        }
+
+        if (int.TryParse(_customHeightTextBox.Text, out var height))
+        {
+            Shared.Settings.CustomResolutionHeight = Math.Max(0, height);
         }
     }
 
@@ -489,6 +655,65 @@ public partial class SettingsForm : Form
     private void OnUpdateIntervalChanged(object? sender, EventArgs e)
     {
         SaveSettings();
+    }
+
+    /// <summary>
+    /// Event handler for resolution mode combo box changes.
+    /// </summary>
+    /// <param name="sender">The combo box control that triggered the event.</param>
+    /// <param name="e">Event arguments for the selection change.</param>
+    private void OnResolutionModeChanged(object? sender, EventArgs e)
+    {
+        SaveSettings();
+        UpdateCustomResolutionState();
+    }
+
+    /// <summary>
+    /// Event handler for custom resolution text box changes.
+    /// </summary>
+    /// <param name="sender">The text box control that triggered the event.</param>
+    /// <param name="e">Event arguments for the text change.</param>
+    private void OnCustomResolutionChanged(object? sender, EventArgs e)
+    {
+        SaveSettings();
+    }
+
+    /// <summary>
+    /// Updates the enabled state of custom resolution inputs based on mode.
+    /// Custom resolution inputs are only enabled when resolution mode is not None.
+    /// </summary>
+    private void UpdateCustomResolutionState()
+    {
+        var mode = ResolutionMode.None;
+        if (_resolutionModeCombo.SelectedItem is ComboBoxItem item)
+        {
+            mode = (ResolutionMode)item.Value;
+        }
+
+        var enableCustom = mode != ResolutionMode.None;
+        _customWidthTextBox.Enabled = enableCustom;
+        _customHeightTextBox.Enabled = enableCustom;
+    }
+
+    /// <summary>
+    /// Gets the detected screen resolution as a display string.
+    /// </summary>
+    /// <returns>A string showing the detected primary screen resolution.</returns>
+    private static string GetDetectedResolutionText()
+    {
+        try
+        {
+            var screen = Screen.PrimaryScreen;
+            if (screen != null)
+            {
+                return $"Detected: {screen.Bounds.Width} x {screen.Bounds.Height}";
+            }
+        }
+        catch
+        {
+            // Ignore detection errors
+        }
+        return "Detected: Unable to detect";
     }
 
     /// <summary>
