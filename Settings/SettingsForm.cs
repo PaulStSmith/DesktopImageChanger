@@ -176,6 +176,7 @@ public partial class SettingsForm : Form
         ApplyButtonTheme(_removeSatelliteButton);
         ApplyButtonTheme(_moveUpButton);
         ApplyButtonTheme(_moveDownButton);
+        ApplyButtonTheme(_browseOutputFolderButton);
     }
 
     private void ApplyButtonTheme(Button? button, bool primary = false)
@@ -370,6 +371,7 @@ public partial class SettingsForm : Form
 
         _customWidthTextBox.Text = Shared.Settings.CustomResolutionWidth.ToString();
         _customHeightTextBox.Text = Shared.Settings.CustomResolutionHeight.ToString();
+        _outputFolderTextBox.Text = Shared.Settings.WallpaperOutputDirectory;
         UpdateCustomResolutionState();
 
         // Satellites tab
@@ -467,6 +469,10 @@ public partial class SettingsForm : Form
             Shared.Settings.CustomResolutionHeight = Math.Max(0, height);
         }
 
+        Shared.Settings.WallpaperOutputDirectory = string.IsNullOrWhiteSpace(_outputFolderTextBox.Text)
+            ? Environment.GetFolderPath(Environment.SpecialFolder.MyPictures)
+            : _outputFolderTextBox.Text.Trim();
+
         _taskStatusLabel.Text = GetTaskStatusText();
         _detectedResolutionLabel.Text = GetDetectedResolutionText();
         ApplyThemeToLabel(_taskStatusLabel);
@@ -485,6 +491,8 @@ public partial class SettingsForm : Form
     }
 
     private void OnCustomResolutionChanged(object? sender, EventArgs e) => SaveSettings();
+
+    private void OnOutputFolderChanged(object? sender, EventArgs e) => SaveSettings();
 
     private void UpdateCustomResolutionState()
     {
@@ -511,6 +519,23 @@ public partial class SettingsForm : Form
         }
         catch { }
         return "Detected: Unable to detect";
+    }
+
+    private void OnBrowseOutputFolderClick(object? sender, EventArgs e)
+    {
+        using var dialog = new FolderBrowserDialog
+        {
+            Description = "Select the folder where generated wallpaper images should be saved.",
+            SelectedPath = string.IsNullOrWhiteSpace(_outputFolderTextBox.Text)
+                ? Environment.GetFolderPath(Environment.SpecialFolder.MyPictures)
+                : _outputFolderTextBox.Text,
+            UseDescriptionForTitle = true
+        };
+
+        if (dialog.ShowDialog(this) == DialogResult.OK)
+        {
+            _outputFolderTextBox.Text = dialog.SelectedPath;
+        }
     }
 
     private void OnSatelliteTrackingChanged(object? sender, EventArgs e)
