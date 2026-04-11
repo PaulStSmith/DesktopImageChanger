@@ -37,7 +37,7 @@ public class MultiSatelliteTracker
     /// <summary>
     /// Orbit visualization parameters.
     /// </summary>
-    private const int DefaultOrbitSegments = 50;
+    private const int OrbitSegments = 50;
     private const double MinutesBeforeCurrent = 10.0;
     private const double MinutesAfterCurrent = 10.0;
 
@@ -115,13 +115,6 @@ public class MultiSatelliteTracker
 
                     // Calculate sunlight status
                     position = CalculateSunlightStatus(position);
-
-                    if (_configManager.VisibilityMode == SatelliteVisibilityMode.DaylightOnly &&
-                        !position.IsInSunlight)
-                    {
-                        _logger.Debug($"Skipping {config.Name} because it is not in sunlight");
-                        continue;
-                    }
 
                     // Calculate orbit path if enabled
                     List<SatelliteRenderer.SatellitePosition>? orbitPath = null;
@@ -233,17 +226,13 @@ public class MultiSatelliteTracker
             return null;
 
         var orbitPoints = new List<SatelliteRenderer.SatellitePosition>();
-        var orbitSegments = Math.Clamp(
-            _configManager.Config.DefaultOrbitPoints > 0 ? _configManager.Config.DefaultOrbitPoints : DefaultOrbitSegments,
-            2,
-            200);
 
         try
         {
-            for (var i = 0; i < orbitSegments; i++)
+            for (var i = 0; i < OrbitSegments; i++)
             {
                 var minutesFromNow = -MinutesBeforeCurrent +
-                    (i * (MinutesBeforeCurrent + MinutesAfterCurrent) / (orbitSegments - 1));
+                    (i * (MinutesBeforeCurrent + MinutesAfterCurrent) / (OrbitSegments - 1));
                 var targetTime = currentTime.AddMinutes(minutesFromNow);
 
                 try

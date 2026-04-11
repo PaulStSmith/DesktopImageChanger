@@ -28,16 +28,6 @@ public partial class SettingsForm : Form
     private NotifyIcon? _notifyIcon;
 
     /// <summary>
-    /// Fallback timer used when Task Scheduler automation is unavailable.
-    /// </summary>
-    private System.Windows.Forms.Timer? _fallbackUpdateTimer;
-
-    /// <summary>
-    /// Prevents overlapping wallpaper updates from the tray fallback timer.
-    /// </summary>
-    private bool _isWallpaperUpdateInProgress;
-
-    /// <summary>
     /// Indicates whether the form should start minimized to the system tray.
     /// </summary>
     private readonly bool _minimizeToTray = false;
@@ -49,14 +39,12 @@ public partial class SettingsForm : Form
     public SettingsForm(bool minimizeToTray = false)
     {
         _colorScheme = ThemeManager.GetCurrentColorScheme();
-        _minimizeToTray = minimizeToTray;
 
         InitializeComponent();
         WireEvents();
         ApplyTheme();
         InitializeTrayIcon();
         LoadSettings();
-        InitializeAutoUpdateFallback();
         StartWallpaperMonitoring();
 
         if (minimizeToTray)
@@ -160,9 +148,7 @@ public partial class SettingsForm : Form
 
         if (ReferenceEquals(label, _taskStatusLabel))
         {
-            label.ForeColor = (Shared.Settings.TrayAutoUpdateFallbackEnabled && !TaskManager.TaskExists()) || TaskManager.IsTaskEnabled()
-                ? _colorScheme.SuccessColor
-                : _colorScheme.WarningColor;
+            label.ForeColor = TaskManager.IsTaskEnabled() ? _colorScheme.SuccessColor : _colorScheme.WarningColor;
             return;
         }
 
@@ -189,7 +175,6 @@ public partial class SettingsForm : Form
         ApplyButtonTheme(_removeSatelliteButton);
         ApplyButtonTheme(_moveUpButton);
         ApplyButtonTheme(_moveDownButton);
-        ApplyButtonTheme(_browseOutputFolderButton);
     }
 
     private void ApplyButtonTheme(Button? button, bool primary = false)
@@ -329,7 +314,7 @@ public partial class SettingsForm : Form
         {
             _notifyIcon!.ShowBalloonTip(2000, "World Map Wallpaper", "Updating wallpaper...", ToolTipIcon.Info);
 
-            var success = await TriggerWallpaperUpdateAsync();
+            var success = TaskManager.RunTaskNow();
             if (success)
                 _notifyIcon.ShowBalloonTip(2000, "World Map Wallpaper", "Wallpaper updated successfully!", ToolTipIcon.Info);
             else
@@ -359,8 +344,6 @@ public partial class SettingsForm : Form
         _issCheckBox.Checked = Shared.Settings.ShowISS;
         _timeZonesCheckBox.Checked = Shared.Settings.ShowTimeZones;
         _politicalMapCheckBox.Checked = Shared.Settings.ShowPoliticalMap;
-        _taskStatusLabel.Text = GetTaskStatusText();
-        _detectedResolutionLabel.Text = GetDetectedResolutionText();
 
         var currentInterval = Shared.Settings.UpdateInterval;
         for (var i = 0; i < _updateIntervalCombo.Items.Count; i++)
@@ -384,7 +367,6 @@ public partial class SettingsForm : Form
 
         _customWidthTextBox.Text = Shared.Settings.CustomResolutionWidth.ToString();
         _customHeightTextBox.Text = Shared.Settings.CustomResolutionHeight.ToString();
-        _outputFolderTextBox.Text = Shared.Settings.WallpaperOutputDirectory;
         UpdateCustomResolutionState();
 
         // Satellites tab
@@ -464,9 +446,7 @@ public partial class SettingsForm : Form
         if (_updateIntervalCombo.SelectedItem is ComboBoxItem item)
         {
             Shared.Settings.UpdateInterval = (UpdateInterval)item.Value;
-
-            if (TaskManager.TaskExists())
-                TaskManager.UpdateTaskSchedule((UpdateInterval)item.Value);
+            TaskManager.UpdateTaskSchedule((UpdateInterval)item.Value);
         }
 
         if (_resolutionModeCombo.SelectedItem is ComboBoxItem resItem)
@@ -483,28 +463,6 @@ public partial class SettingsForm : Form
         {
             Shared.Settings.CustomResolutionHeight = Math.Max(0, height);
         }
-
-        SaveOutputFolderSetting();
-
-        _taskStatusLabel.Text = GetTaskStatusText();
-        _detectedResolutionLabel.Text = GetDetectedResolutionText();
-        ApplyThemeToLabel(_taskStatusLabel);
-        ApplyThemeToLabel(_detectedResolutionLabel);
-        UpdateAutoUpdateFallbackState();
-    }
-
-    private void SaveOutputFolderSetting()
-    {
-        Shared.Settings.WallpaperOutputDirectory = string.IsNullOrWhiteSpace(_outputFolderTextBox.Text)
-            ? AppStoragePaths.GetDefaultWallpaperOutputDirectory(AppStoragePaths.InstallScope)
-            : _outputFolderTextBox.Text.Trim();
-    }
-
-    private void SaveOutputFolderSetting()
-    {
-        Shared.Settings.WallpaperOutputDirectory = string.IsNullOrWhiteSpace(_outputFolderTextBox.Text)
-            ? Environment.GetFolderPath(Environment.SpecialFolder.MyPictures)
-            : _outputFolderTextBox.Text.Trim();
     }
 
     // Event handlers
@@ -519,8 +477,6 @@ public partial class SettingsForm : Form
     }
 
     private void OnCustomResolutionChanged(object? sender, EventArgs e) => SaveSettings();
-
-    private void OnOutputFolderChanged(object? sender, EventArgs e) => SaveOutputFolderSetting();
 
     private void UpdateCustomResolutionState()
     {
@@ -549,114 +505,10 @@ public partial class SettingsForm : Form
         return "Detected: Unable to detect";
     }
 
-    private void OnBrowseOutputFolderClick(object? sender, EventArgs e)
-    {
-        using var dialog = new FolderBrowserDialog
-        {
-            Description = "Select the folder where generated wallpaper images should be saved.",
-            SelectedPath = string.IsNullOrWhiteSpace(_outputFolderTextBox.Text)
-                ? AppStoragePaths.GetDefaultWallpaperOutputDirectory(AppStoragePaths.InstallScope)
-                : _outputFolderTextBox.Text,
-            UseDescriptionForTitle = true
-        };
-
-        if (dialog.ShowDialog(this) == DialogResult.OK)
-        {
-            _outputFolderTextBox.Text = dialog.SelectedPath;
-            SaveOutputFolderSetting();
-        }
-    }
-
     private void OnSatelliteTrackingChanged(object? sender, EventArgs e)
     {
         Shared.Settings.SatelliteTrackingEnabled = _satelliteTrackingCheckBox.Checked;
         UpdateSatelliteUI();
-    }
-
-    private void InitializeAutoUpdateFallback()
-    {
-        _fallbackUpdateTimer = new System.Windows.Forms.Timer();
-        _fallbackUpdateTimer.Tick += OnFallbackUpdateTimerTick;
-        UpdateAutoUpdateFallbackState();
-    }
-
-    private void UpdateAutoUpdateFallbackState()
-    {
-        if (_fallbackUpdateTimer == null)
-            return;
-
-        _fallbackUpdateTimer.Stop();
-        _fallbackUpdateTimer.Interval = GetFallbackTimerIntervalMs();
-
-        if (IsTrayFallbackActive())
-            _fallbackUpdateTimer.Start();
-
-        _taskStatusLabel.Text = GetTaskStatusText();
-        ApplyThemeToLabel(_taskStatusLabel);
-    }
-
-    private bool IsTrayFallbackActive()
-    {
-        return Shared.Settings.TrayAutoUpdateFallbackEnabled && !TaskManager.TaskExists();
-    }
-
-    private int GetFallbackTimerIntervalMs()
-    {
-        var interval = Shared.Settings.UpdateInterval.ToTimeSpan();
-        var totalMilliseconds = interval.TotalMilliseconds;
-
-        if (totalMilliseconds < 1000)
-            return 1000;
-
-        return totalMilliseconds > int.MaxValue
-            ? int.MaxValue
-            : (int)totalMilliseconds;
-    }
-
-    private async void OnFallbackUpdateTimerTick(object? sender, EventArgs e)
-    {
-        if (!IsTrayFallbackActive() || !Shared.Settings.IsActive || _isWallpaperUpdateInProgress)
-            return;
-
-        _isWallpaperUpdateInProgress = true;
-        try
-        {
-            await TriggerWallpaperUpdateAsync();
-        }
-        finally
-        {
-            _isWallpaperUpdateInProgress = false;
-        }
-    }
-
-    private async Task<bool> TriggerWallpaperUpdateAsync()
-    {
-        if (TaskManager.TaskExists())
-            return TaskManager.RunTaskNow();
-
-        var mainExecutablePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "WorldMapWallpaper.exe");
-        if (!File.Exists(mainExecutablePath))
-            return false;
-
-        try
-        {
-            using var process = Process.Start(new ProcessStartInfo
-            {
-                FileName = mainExecutablePath,
-                WorkingDirectory = AppDomain.CurrentDomain.BaseDirectory,
-                UseShellExecute = true
-            });
-
-            if (process == null)
-                return false;
-
-            await process.WaitForExitAsync();
-            return process.ExitCode == 0;
-        }
-        catch
-        {
-            return false;
-        }
     }
 
     private void OnSatelliteSelectionChanged(object? sender, EventArgs e) => UpdateSatelliteUI();
@@ -748,7 +600,7 @@ public partial class SettingsForm : Form
         {
             SaveSettings();
 
-            if (await TriggerWallpaperUpdateAsync())
+            if (TaskManager.RunTaskNow())
             {
                 _previewButton.Text = "Updated!";
                 await Task.Delay(2000);
@@ -797,19 +649,17 @@ public partial class SettingsForm : Form
             Shared.Settings.IsActive = false;
 
             if (InvokeRequired)
-                Invoke(new Action(() =>
-                {
-                    UpdateAutoUpdateFallbackState();
-                    _notifyIcon?.ShowBalloonTip(3000, "World Map Wallpaper",
-                        "Automatic updates disabled - you switched to a different wallpaper", ToolTipIcon.Info);
-                }));
+                Invoke(new Action(() => _notifyIcon?.ShowBalloonTip(3000, "World Map Wallpaper",
+                    "Automatic updates disabled - you switched to a different wallpaper", ToolTipIcon.Info)));
             else
-            {
-                UpdateAutoUpdateFallbackState();
                 _notifyIcon?.ShowBalloonTip(3000, "World Map Wallpaper",
                     "Automatic updates disabled - you switched to a different wallpaper", ToolTipIcon.Info);
-            }
         }
+    }
+
+    protected override void SetVisibleCore(bool value)
+    {
+        base.SetVisibleCore(!_minimizeToTray && value);
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
@@ -827,12 +677,6 @@ public partial class SettingsForm : Form
 
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
-        if (_fallbackUpdateTimer != null)
-        {
-            _fallbackUpdateTimer.Stop();
-            _fallbackUpdateTimer.Dispose();
-        }
-
         _wallpaperMonitor?.Stop();
         _wallpaperMonitor?.Dispose();
         _notifyIcon?.Dispose();
@@ -841,16 +685,8 @@ public partial class SettingsForm : Form
 
     private static string GetTaskStatusText()
     {
-        if (Shared.Settings.TrayAutoUpdateFallbackEnabled && !TaskManager.TaskExists())
-        {
-            if (!Shared.Settings.IsActive)
-                return "Tray fallback mode paused - wallpaper monitoring detected another wallpaper";
-
-            return $"Tray fallback mode active - updates {Shared.Settings.UpdateInterval.ToDisplayString().ToLowerInvariant()}";
-        }
-
         if (!TaskManager.TaskExists())
-            return "Automatic updates unavailable - task not found";
+            return "Task not found - reinstall may be required";
 
         if (!TaskManager.IsTaskEnabled())
             return "Task is disabled";
