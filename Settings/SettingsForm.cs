@@ -39,6 +39,7 @@ public partial class SettingsForm : Form
     public SettingsForm(bool minimizeToTray = false)
     {
         _colorScheme = ThemeManager.GetCurrentColorScheme();
+        _minimizeToTray = minimizeToTray;
 
         InitializeComponent();
         WireEvents();
@@ -344,6 +345,8 @@ public partial class SettingsForm : Form
         _issCheckBox.Checked = Shared.Settings.ShowISS;
         _timeZonesCheckBox.Checked = Shared.Settings.ShowTimeZones;
         _politicalMapCheckBox.Checked = Shared.Settings.ShowPoliticalMap;
+        _taskStatusLabel.Text = GetTaskStatusText();
+        _detectedResolutionLabel.Text = GetDetectedResolutionText();
 
         var currentInterval = Shared.Settings.UpdateInterval;
         for (var i = 0; i < _updateIntervalCombo.Items.Count; i++)
@@ -463,6 +466,11 @@ public partial class SettingsForm : Form
         {
             Shared.Settings.CustomResolutionHeight = Math.Max(0, height);
         }
+
+        _taskStatusLabel.Text = GetTaskStatusText();
+        _detectedResolutionLabel.Text = GetDetectedResolutionText();
+        ApplyThemeToLabel(_taskStatusLabel);
+        ApplyThemeToLabel(_detectedResolutionLabel);
     }
 
     // Event handlers
@@ -655,11 +663,6 @@ public partial class SettingsForm : Form
                 _notifyIcon?.ShowBalloonTip(3000, "World Map Wallpaper",
                     "Automatic updates disabled - you switched to a different wallpaper", ToolTipIcon.Info);
         }
-    }
-
-    protected override void SetVisibleCore(bool value)
-    {
-        base.SetVisibleCore(!_minimizeToTray && value);
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
