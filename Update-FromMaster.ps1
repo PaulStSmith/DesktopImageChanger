@@ -127,7 +127,7 @@ if ($stashRelevantStatus.Count -gt 0) {
 }
 
 $tempBat = Join-Path ([System.IO.Path]::GetTempPath()) ("update-from-master-{0}.bat" -f ([guid]::NewGuid().ToString('N')))
-$repoRootEscaped = $repoRoot.Replace('%', '%%').Replace('"', '""')
+$repoRootEscaped = $repoRoot.Replace('"', '""')
 $currentBranchEscaped = $currentBranch.Replace('"', '""')
 
 $batchContent = @"
@@ -149,6 +149,11 @@ if errorlevel 1 exit /b 1
 echo.
 echo ^> git pull --ff-only origin master
 git pull --ff-only origin master
+if errorlevel 1 exit /b 1
+
+echo.
+echo ^> git fetch origin "%ORIGINAL_BRANCH%"
+git fetch origin "%ORIGINAL_BRANCH%"
 if errorlevel 1 exit /b 1
 
 echo.
