@@ -347,17 +347,24 @@ namespace WorldMapWallpaper
                     }
                 }
 
-                // Add ISS tracking (if enabled)
+                // Add satellite tracking (if enabled)
                 Bitmap finalImage;
-                if (Settings.ShowISS)
+                if (Settings.SatelliteTrackingEnabled)
                 {
-                    log.Debug("Adding ISS tracking to wallpaper.");
+                    log.Debug("Adding satellite tracking to wallpaper.");
+                    var multiTracker = new MultiSatelliteTracker(log, timeOffset, declination);
+                    finalImage = multiTracker.PlotSatellites(night);
+                }
+                else if (Settings.ShowISS)
+                {
+                    // Fallback to legacy ISS-only tracking if satellite tracking is disabled but ShowISS is on
+                    log.Debug("Using legacy ISS tracking.");
                     var issTracker = new ISSTracker(log, timeOffset, declination);
                     finalImage = issTracker.PlotISS(night);
                 }
                 else
                 {
-                    log.Debug("ISS tracking disabled by user settings.");
+                    log.Debug("Satellite tracking disabled by user settings.");
                     finalImage = night;
                 }
 

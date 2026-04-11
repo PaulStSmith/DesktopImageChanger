@@ -83,6 +83,16 @@ public static class Settings
     }
 
     /// <summary>
+    /// Gets or sets whether satellite tracking is enabled.
+    /// This is the master switch for all satellite tracking features.
+    /// </summary>
+    public static bool SatelliteTrackingEnabled
+    {
+        get => GetBoolSetting("SatelliteTrackingEnabled", true);
+        set => SetBoolSetting("SatelliteTrackingEnabled", value);
+    }
+
+    /// <summary>
     /// Gets a boolean setting from the registry.
     /// </summary>
     /// <param name="name">The setting name.</param>
@@ -211,5 +221,6 @@ public static class Settings
         ResolutionMode = ResolutionMode.None;
         CustomResolutionWidth = 0;
         CustomResolutionHeight = 0;
+        SatelliteTrackingEnabled = true;
     }
 }
