@@ -1,5 +1,3 @@
-using WorldMapWallpaper.Shared;
-
 namespace WorldMapWallpaper.Settings
 {
     partial class SettingsForm
@@ -212,11 +210,14 @@ namespace WorldMapWallpaper.Settings
                 BackColor = SystemColors.Window,
                 ForeColor = Color.Black
             };
-            _updateIntervalCombo.Items.Add(new ComboBoxItem("Every 5 minutes", UpdateInterval.Every5Minutes));
-            _updateIntervalCombo.Items.Add(new ComboBoxItem("Every 10 minutes", UpdateInterval.Every10Minutes));
-            _updateIntervalCombo.Items.Add(new ComboBoxItem("Every 15 minutes", UpdateInterval.Every15Minutes));
-            _updateIntervalCombo.Items.Add(new ComboBoxItem("Every 30 minutes", UpdateInterval.Every30Minutes));
-            _updateIntervalCombo.Items.Add(new ComboBoxItem("Every hour", UpdateInterval.Hourly));
+            _updateIntervalCombo.Items.Add("Every 5 minutes");
+            _updateIntervalCombo.Items.Add("Every 15 minutes");
+            _updateIntervalCombo.Items.Add("Every 30 minutes");
+            _updateIntervalCombo.Items.Add("Every hour");
+            _updateIntervalCombo.Items.Add("Every 2 hours");
+            _updateIntervalCombo.Items.Add("Every 6 hours");
+            _updateIntervalCombo.Items.Add("Every 12 hours");
+            _updateIntervalCombo.Items.Add("Daily");
             _updateIntervalCombo.SelectedIndex = 0;
             _updateGroup.Controls.Add(_updateIntervalCombo);
 
@@ -263,9 +264,8 @@ namespace WorldMapWallpaper.Settings
                 BackColor = SystemColors.Window,
                 ForeColor = Color.Black
             };
-            _resolutionModeCombo.Items.Add(new ComboBoxItem("Original (1920x1080)", ResolutionMode.None));
-            _resolutionModeCombo.Items.Add(new ComboBoxItem("Fit to Screen", ResolutionMode.Fit));
-            _resolutionModeCombo.Items.Add(new ComboBoxItem("Stretch to Screen", ResolutionMode.Stretch));
+            _resolutionModeCombo.Items.Add("Auto-detect");
+            _resolutionModeCombo.Items.Add("Custom");
             _resolutionModeCombo.SelectedIndex = 0;
             _resolutionGroup.Controls.Add(_resolutionModeCombo);
 
@@ -437,7 +437,7 @@ namespace WorldMapWallpaper.Settings
             // Satellites list
             _listLabel = new Label
             {
-                Text = "Configured Satellites (use Move Up/Down to reorder priority):",
+                Text = "Configured Satellites (drag to reorder priority):",
                 Location = new Point(10, 45),
                 Size = new Size(300, 18),
                 Font = new Font("Segoe UI", 9F),

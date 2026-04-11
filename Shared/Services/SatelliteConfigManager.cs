@@ -253,12 +253,11 @@ public class SatelliteConfigManager
             return 0;
 
         var count = 0;
-        var importedSatellites = imported.Satellites ?? new List<SatelliteConfig>();
 
         if (mergeMode)
         {
             // Merge: update existing, add new
-            foreach (var satellite in importedSatellites)
+            foreach (var satellite in imported.Satellites)
             {
                 var existing = _config.Satellites.FirstOrDefault(s => s.NoradId == satellite.NoradId);
                 if (existing != null)
@@ -278,8 +277,8 @@ public class SatelliteConfigManager
         else
         {
             // Replace all
-            _config.Satellites = importedSatellites;
-            count = _config.Satellites.Count;
+            _config.Satellites = imported.Satellites;
+            count = imported.Satellites.Count;
         }
 
         // Also import settings
@@ -343,7 +342,6 @@ public class SatelliteConfigManager
 
         // Create default configuration with ISS
         var defaultConfig = CreateDefault();
-        _config = defaultConfig;
         Save();
         return defaultConfig;
     }
