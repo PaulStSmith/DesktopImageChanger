@@ -25,6 +25,8 @@ namespace WorldMapWallpaper.Settings
         private TextBox _customWidthTextBox = null!;
         private TextBox _customHeightTextBox = null!;
         private Label _detectedResolutionLabel = null!;
+        private TextBox _outputFolderTextBox = null!;
+        private Button _browseOutputFolderButton = null!;
 
         // Satellites Tab Controls
         private CheckBox _satelliteTrackingCheckBox = null!;
@@ -49,6 +51,7 @@ namespace WorldMapWallpaper.Settings
         private GroupBox _resolutionGroup = null!;
         private Label _resModeLabel = null!;
         private Label _customLabel = null!;
+        private Label _outputFolderLabel = null!;
         private Label _xLabel = null!;
         private Label _helpLabel = null!;
         private Label _listLabel = null!;
@@ -87,7 +90,7 @@ namespace WorldMapWallpaper.Settings
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(480, 670);
+            this.ClientSize = new System.Drawing.Size(480, 720);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
             this.MinimizeBox = false;
@@ -232,7 +235,7 @@ namespace WorldMapWallpaper.Settings
                 Text = "Resolution Settings",
                 Font = new Font("Segoe UI", 9F, FontStyle.Bold),
                 Location = new Point(5, 225),
-                Size = new Size(_generalTab.ClientSize.Width - 10, 115),
+                Size = new Size(_generalTab.ClientSize.Width - 10, 160),
                 ForeColor = Color.Black,
                 BackColor = SystemColors.Control
             };
@@ -328,11 +331,45 @@ namespace WorldMapWallpaper.Settings
             };
             _resolutionGroup.Controls.Add(_helpLabel);
 
+            _outputFolderLabel = new Label
+            {
+                Text = "Save image in:",
+                Location = new Point(12, 105),
+                Size = new Size(105, 20),
+                Font = new Font("Segoe UI", 9F),
+                ForeColor = Color.Black,
+                BackColor = Color.Transparent
+            };
+            _resolutionGroup.Controls.Add(_outputFolderLabel);
+
+            _outputFolderTextBox = new TextBox
+            {
+                Location = new Point(120, 102),
+                Size = new Size(215, 23),
+                Font = new Font("Segoe UI", 9F),
+                BackColor = SystemColors.Window,
+                ForeColor = Color.Black
+            };
+            _resolutionGroup.Controls.Add(_outputFolderTextBox);
+
+            _browseOutputFolderButton = new Button
+            {
+                Text = "Browse...",
+                Location = new Point(340, 101),
+                Size = new Size(75, 25),
+                BackColor = SystemColors.Control,
+                ForeColor = Color.Black,
+                FlatStyle = FlatStyle.Flat
+            };
+            _browseOutputFolderButton.FlatAppearance.BorderSize = 1;
+            _browseOutputFolderButton.FlatAppearance.BorderColor = SystemColors.WindowFrame;
+            _resolutionGroup.Controls.Add(_browseOutputFolderButton);
+
             // Preview Button
             _previewButton = new Button
             {
                 Text = "Update Wallpaper Now",
-                Location = new Point(padding, 560),
+                Location = new Point(padding, 610),
                 Size = new Size(this.ClientSize.Width - 2 * padding, 35),
                 Font = new Font("Segoe UI", 9F),
                 BackColor = Color.Blue,
@@ -347,7 +384,7 @@ namespace WorldMapWallpaper.Settings
             _resetButton = new Button
             {
                 Text = "Reset to Defaults",
-                Location = new Point(padding, 610),
+                Location = new Point(padding, 660),
                 Size = new Size(130, 30),
                 Font = new Font("Segoe UI", 9F),
                 BackColor = SystemColors.Control,
@@ -362,7 +399,7 @@ namespace WorldMapWallpaper.Settings
             _closeButton = new Button
             {
                 Text = "Close",
-                Location = new Point(this.ClientSize.Width - padding - 80, 610),
+                Location = new Point(this.ClientSize.Width - padding - 80, 660),
                 Size = new Size(80, 30),
                 Font = new Font("Segoe UI", 9F),
                 BackColor = SystemColors.Control,
@@ -614,6 +651,8 @@ namespace WorldMapWallpaper.Settings
             _resolutionModeCombo.SelectedIndexChanged += OnResolutionModeChanged;
             _customWidthTextBox.TextChanged += OnCustomResolutionChanged;
             _customHeightTextBox.TextChanged += OnCustomResolutionChanged;
+            _outputFolderTextBox.TextChanged += OnOutputFolderChanged;
+            _browseOutputFolderButton.Click += OnBrowseOutputFolderClick;
             _satelliteTrackingCheckBox.CheckedChanged += OnSatelliteTrackingChanged;
             _satelliteListBox.SelectedIndexChanged += OnSatelliteSelectionChanged;
             _satelliteListBox.DoubleClick += OnSatelliteDoubleClick;

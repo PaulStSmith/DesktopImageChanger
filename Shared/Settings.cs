@@ -93,6 +93,16 @@ public static class Settings
     }
 
     /// <summary>
+    /// Gets or sets the folder where generated wallpaper images are saved.
+    /// </summary>
+    public static string WallpaperOutputDirectory
+    {
+        get => GetStringSetting("WallpaperOutputDirectory",
+            Environment.GetFolderPath(Environment.SpecialFolder.MyPictures));
+        set => SetStringSetting("WallpaperOutputDirectory", value);
+    }
+
+    /// <summary>
     /// Gets a boolean setting from the registry.
     /// </summary>
     /// <param name="name">The setting name.</param>
@@ -209,6 +219,39 @@ public static class Settings
     }
 
     /// <summary>
+    /// Gets a string setting from the registry.
+    /// </summary>
+    private static string GetStringSetting(string name, string defaultValue)
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(RegistryKeyPath);
+            var value = key?.GetValue(name)?.ToString();
+            return string.IsNullOrWhiteSpace(value) ? defaultValue : value;
+        }
+        catch
+        {
+            return defaultValue;
+        }
+    }
+
+    /// <summary>
+    /// Sets a string setting in the registry.
+    /// </summary>
+    private static void SetStringSetting(string name, string value)
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.CreateSubKey(RegistryKeyPath);
+            key?.SetValue(name, value);
+        }
+        catch
+        {
+            // Silently fail - settings will use defaults
+        }
+    }
+
+    /// <summary>
     /// Resets all settings to their default values.
     /// </summary>
     public static void ResetToDefaults()
@@ -222,5 +265,6 @@ public static class Settings
         CustomResolutionWidth = 0;
         CustomResolutionHeight = 0;
         SatelliteTrackingEnabled = true;
+        WallpaperOutputDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
     }
 }
