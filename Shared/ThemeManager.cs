@@ -57,7 +57,8 @@ public static class ThemeManager
             ButtonHoverColor = Color.FromArgb(70, 70, 70),       // Button hover
             GroupBoxBackColor = Color.FromArgb(40, 40, 40),      // GroupBox background
             SuccessColor = Color.FromArgb(16, 124, 16),          // Dark green
-            ErrorColor = Color.FromArgb(196, 43, 28)             // Dark red
+            ErrorColor = Color.FromArgb(196, 43, 28),            // Dark red
+            WarningColor = Color.FromArgb(255, 185, 0)           // Warning orange
         };
     }
 
@@ -79,7 +80,8 @@ public static class ThemeManager
             ButtonHoverColor = Color.FromArgb(230, 230, 230),    // Button hover
             GroupBoxBackColor = Color.FromArgb(248, 248, 248),   // GroupBox background
             SuccessColor = Color.FromArgb(16, 124, 16),          // Green
-            ErrorColor = Color.FromArgb(196, 43, 28)             // Red
+            ErrorColor = Color.FromArgb(196, 43, 28),            // Red
+            WarningColor = Color.FromArgb(210, 140, 0)           // Warning orange
         };
     }
 }
@@ -100,4 +102,5 @@ public class ColorScheme
     public Color GroupBoxBackColor { get; set; }
     public Color SuccessColor { get; set; }
     public Color ErrorColor { get; set; }
+    public Color WarningColor { get; set; }
 }

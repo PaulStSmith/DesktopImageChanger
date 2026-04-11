@@ -1,4 +1,6 @@
 using WorldMapWallpaper.Shared;
+using WorldMapWallpaper.Shared.Models;
+using WorldMapWallpaper.Shared.Services;
 using System.Diagnostics;
 using System.Reflection;
 
@@ -6,7 +8,7 @@ namespace WorldMapWallpaper.Settings;
 
 /// <summary>
 /// The main settings form for World Map Wallpaper.
-/// Provides a modern-looking interface for configuring wallpaper options with system theme support.
+/// Provides a modern tabbed interface for configuring wallpaper and satellite options.
 /// </summary>
 public partial class SettingsForm : Form
 {
@@ -14,99 +16,38 @@ public partial class SettingsForm : Form
     /// Monitors wallpaper changes to detect when the user switches away from our wallpaper.
     /// </summary>
     private WallpaperMonitor? _wallpaperMonitor;
-    
+
     /// <summary>
-    /// The color scheme used for theming the form controls based on the current system theme.
+    /// The color scheme used for theming the form controls.
     /// </summary>
     private readonly ColorScheme _colorScheme = null!;
-    
+
     /// <summary>
-    /// The system tray icon that provides quick access to settings and wallpaper updates.
+    /// The system tray icon for quick access.
     /// </summary>
     private NotifyIcon? _notifyIcon;
-    
+
     /// <summary>
     /// Indicates whether the form should start minimized to the system tray.
     /// </summary>
     private readonly bool _minimizeToTray = false;
 
     /// <summary>
-    /// Checkbox control for enabling/disabling the International Space Station overlay.
+    /// Initializes a new instance of the SettingsForm class.
     /// </summary>
-    private CheckBox _issCheckBox = null!;
-    
-    /// <summary>
-    /// Checkbox control for enabling/disabling the time zones overlay.
-    /// </summary>
-    private CheckBox _timeZonesCheckBox = null!;
-    
-    /// <summary>
-    /// Checkbox control for enabling/disabling the political map overlay.
-    /// </summary>
-    private CheckBox _politicalMapCheckBox = null!;
-    
-    /// <summary>
-    /// Combo box for selecting the wallpaper update frequency.
-    /// </summary>
-    private ComboBox _updateIntervalCombo = null!;
-    
-    /// <summary>
-    /// Button for immediately updating the wallpaper with current settings.
-    /// </summary>
-    private Button _previewButton = null!;
-    
-    /// <summary>
-    /// Button for resetting all settings to their default values.
-    /// </summary>
-    private Button _resetButton = null!;
-    
-    /// <summary>
-    /// Button for closing the settings form.
-    /// </summary>
-    private Button _closeButton = null!;
-    
-    /// <summary>
-    /// Label displaying the current status of the scheduled task.
-    /// </summary>
-    private Label _taskStatusLabel = null!;
-
-    /// <summary>
-    /// Combo box for selecting the resolution scaling mode.
-    /// </summary>
-    private ComboBox _resolutionModeCombo = null!;
-
-    /// <summary>
-    /// Text box for custom resolution width.
-    /// </summary>
-    private TextBox _customWidthTextBox = null!;
-
-    /// <summary>
-    /// Text box for custom resolution height.
-    /// </summary>
-    private TextBox _customHeightTextBox = null!;
-
-    /// <summary>
-    /// Label showing detected screen resolution.
-    /// </summary>
-    private Label _detectedResolutionLabel = null!;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="SettingsForm"/> class.
-    /// </summary>
-    /// <param name="minimizeToTray">If true, the form starts minimized to the system tray; otherwise, it appears normally.</param>
+    /// <param name="minimizeToTray">If true, the form starts minimized to the system tray.</param>
     public SettingsForm(bool minimizeToTray = false)
     {
-        // Get current theme before initializing components
         _colorScheme = ThemeManager.GetCurrentColorScheme();
-        
+        _minimizeToTray = minimizeToTray;
+
         InitializeComponent();
-        InitializeFormSettings();
+        WireEvents();
         ApplyTheme();
-        InitializeControls();
         InitializeTrayIcon();
         LoadSettings();
         StartWallpaperMonitoring();
-        
+
         if (minimizeToTray)
         {
             this.WindowState = FormWindowState.Minimized;
@@ -116,345 +57,177 @@ public partial class SettingsForm : Form
     }
 
     /// <summary>
-    /// Applies additional form settings after designer initialization.
+    /// Wires up event handlers for the form controls.
     /// </summary>
-    private void InitializeFormSettings()
+    private void WireEvents()
     {
-        // Set modern appearance
-        this.Font = new Font("Segoe UI", 9F);
+        _closeButton.Click += (s, e) => MinimizeToTray();
     }
 
     /// <summary>
-    /// Applies the current theme colors to the form's background and text.
+    /// Applies the current theme colors to the form.
     /// </summary>
     private void ApplyTheme()
     {
-        // Apply theme to the form
-        this.BackColor = _colorScheme.BackgroundColor;
-        this.ForeColor = _colorScheme.PrimaryTextColor;
+        BackColor = _colorScheme.BackgroundColor;
+        ForeColor = _colorScheme.PrimaryTextColor;
+
+        ApplyThemeToControl(this);
+        ApplyThemeToButtons();
+        ApplyThemeToTabPages();
+        UpdateAboutVersionLabel();
     }
 
-    /// <summary>
-    /// Creates and configures all the form controls including labels, checkboxes, buttons, and group boxes.
-    /// Applies theming and sets up event handlers for user interactions.
-    /// </summary>
-    private void InitializeControls()
+    private void ApplyThemeToControl(Control control)
     {
-        var padding = 20;
-        var currentY = padding;
-
-        // Header
-        var headerLabel = new Label
+        switch (control)
         {
-            Text = "World Map Wallpaper Settings",
-            Font = new Font("Segoe UI", 16F, FontStyle.Bold),
-            Location = new Point(padding, currentY),
-            Size = new Size(this.ClientSize.Width - 2 * padding, 32),
-            ForeColor = _colorScheme.AccentColor,
-            BackColor = Color.Transparent
-        };
-        this.Controls.Add(headerLabel);
-        currentY += 50;
+            case TabPage tabPage:
+                tabPage.BackColor = _colorScheme.BackgroundColor;
+                tabPage.ForeColor = _colorScheme.PrimaryTextColor;
+                break;
 
-        var subtitleLabel = new Label
-        {
-            Text = "Configure your dynamic wallpaper preferences",
-            Font = new Font("Segoe UI", 9F),
-            Location = new Point(padding, currentY),
-            Size = new Size(this.ClientSize.Width - 2 * padding, 20),
-            ForeColor = _colorScheme.SecondaryTextColor,
-            BackColor = Color.Transparent
-        };
-        this.Controls.Add(subtitleLabel);
-        currentY += 40;
+            case GroupBox groupBox:
+                groupBox.BackColor = _colorScheme.GroupBoxBackColor;
+                groupBox.ForeColor = _colorScheme.PrimaryTextColor;
+                break;
 
-        // Visual Elements Group
-        var visualGroup = new GroupBox
-        {
-            Text = "Visual Elements",
-            Font = new Font("Segoe UI", 9F, FontStyle.Bold),
-            Location = new Point(padding, currentY),
-            Size = new Size(this.ClientSize.Width - 2 * padding, 120),
-            ForeColor = _colorScheme.PrimaryTextColor,
-            BackColor = _colorScheme.GroupBoxBackColor
-        };
-        this.Controls.Add(visualGroup);
+            case TextBox textBox:
+                textBox.BackColor = _colorScheme.SurfaceColor;
+                textBox.ForeColor = _colorScheme.PrimaryTextColor;
+                break;
 
-        _issCheckBox = new CheckBox
-        {
-            Text = "Show International Space Station position and orbit",
-            Location = new Point(15, 25),
-            Size = new Size(visualGroup.Width - 30, 23),
-            Checked = true,
-            Font = new Font("Segoe UI", 9F),
-            ForeColor = _colorScheme.PrimaryTextColor,
-            BackColor = Color.Transparent
-        };
-        _issCheckBox.CheckedChanged += OnSettingChanged;
-        visualGroup.Controls.Add(_issCheckBox);
+            case ListBox listBox:
+                listBox.BackColor = _colorScheme.SurfaceColor;
+                listBox.ForeColor = _colorScheme.PrimaryTextColor;
+                break;
 
-        _timeZonesCheckBox = new CheckBox
-        {
-            Text = "Show time zone clocks around the world",
-            Location = new Point(15, 50),
-            Size = new Size(visualGroup.Width - 30, 23),
-            Checked = true,
-            Font = new Font("Segoe UI", 9F),
-            ForeColor = _colorScheme.PrimaryTextColor,
-            BackColor = Color.Transparent
-        };
-        _timeZonesCheckBox.CheckedChanged += OnSettingChanged;
-        visualGroup.Controls.Add(_timeZonesCheckBox);
+            case ComboBox comboBox:
+                comboBox.BackColor = _colorScheme.SurfaceColor;
+                comboBox.ForeColor = _colorScheme.PrimaryTextColor;
+                break;
 
-        _politicalMapCheckBox = new CheckBox
-        {
-            Text = "Show political boundaries and country borders",
-            Location = new Point(15, 75),
-            Size = new Size(visualGroup.Width - 30, 23),
-            Checked = true,
-            Font = new Font("Segoe UI", 9F),
-            ForeColor = _colorScheme.PrimaryTextColor,
-            BackColor = Color.Transparent
-        };
-        _politicalMapCheckBox.CheckedChanged += OnSettingChanged;
-        visualGroup.Controls.Add(_politicalMapCheckBox);
+            case NumericUpDown numericUpDown:
+                numericUpDown.BackColor = _colorScheme.SurfaceColor;
+                numericUpDown.ForeColor = _colorScheme.PrimaryTextColor;
+                break;
 
-        currentY += 140;
+            case CheckBox checkBox:
+                checkBox.BackColor = Color.Transparent;
+                checkBox.ForeColor = checkBox.Enabled ? _colorScheme.PrimaryTextColor : _colorScheme.SecondaryTextColor;
+                break;
 
-        // Update Settings Group
-        var updateGroup = new GroupBox
-        {
-            Text = "Update Settings",
-            Font = new Font("Segoe UI", 9F, FontStyle.Bold),
-            Location = new Point(padding, currentY),
-            Size = new Size(this.ClientSize.Width - 2 * padding, 100),
-            ForeColor = _colorScheme.PrimaryTextColor,
-            BackColor = _colorScheme.GroupBoxBackColor
-        };
-        this.Controls.Add(updateGroup);
+            case Label label:
+                ApplyThemeToLabel(label);
+                break;
 
-        var intervalLabel = new Label
-        {
-            Text = "Update Frequency:",
-            Location = new Point(15, 30),
-            Size = new Size(120, 23),
-            Font = new Font("Segoe UI", 9F),
-            ForeColor = _colorScheme.PrimaryTextColor,
-            BackColor = Color.Transparent
-        };
-        updateGroup.Controls.Add(intervalLabel);
+            case Button:
+                // Buttons are themed in a dedicated pass so primary actions stay accented.
+                break;
 
-        _updateIntervalCombo = new ComboBox
-        {
-            Location = new Point(140, 27),
-            Size = new Size(updateGroup.Width - 155, 23),
-            DropDownStyle = ComboBoxStyle.DropDownList,
-            Font = new Font("Segoe UI", 9F),
-            BackColor = _colorScheme.SurfaceColor,
-            ForeColor = _colorScheme.PrimaryTextColor
-        };
-
-        // Populate combo box
-        foreach (var interval in Enum.GetValues<UpdateInterval>())
-        {
-            _updateIntervalCombo.Items.Add(new ComboBoxItem(interval.ToDisplayString(), interval));
+            default:
+                control.BackColor = _colorScheme.BackgroundColor;
+                control.ForeColor = _colorScheme.PrimaryTextColor;
+                break;
         }
-        _updateIntervalCombo.SelectedIndexChanged += OnUpdateIntervalChanged;
-        updateGroup.Controls.Add(_updateIntervalCombo);
 
-        var infoLabel = new Label
+        foreach (Control child in control.Controls)
         {
-            Text = "More frequent updates ensure accurate day/night cycles.",
-            Location = new Point(15, 60),
-            Size = new Size(updateGroup.Width - 30, 15),
-            Font = new Font("Segoe UI", 8F),
-            ForeColor = _colorScheme.SecondaryTextColor,
-            BackColor = Color.Transparent
-        };
-        updateGroup.Controls.Add(infoLabel);
-
-        // Add task status label
-        _taskStatusLabel = new Label
-        {
-            Text = GetTaskStatusText(),
-            Location = new Point(15, 75),
-            Size = new Size(updateGroup.Width - 30, 15),
-            Font = new Font("Segoe UI", 8F),
-            ForeColor = TaskManager.IsTaskEnabled() ? _colorScheme.SuccessColor : _colorScheme.ErrorColor,
-            BackColor = Color.Transparent
-        };
-        updateGroup.Controls.Add(_taskStatusLabel);
-
-        currentY += 120;
-
-        // Resolution Settings Group
-        var resolutionGroup = new GroupBox
-        {
-            Text = "Resolution Settings",
-            Font = new Font("Segoe UI", 9F, FontStyle.Bold),
-            Location = new Point(padding, currentY),
-            Size = new Size(this.ClientSize.Width - 2 * padding, 130),
-            ForeColor = _colorScheme.PrimaryTextColor,
-            BackColor = _colorScheme.GroupBoxBackColor
-        };
-        this.Controls.Add(resolutionGroup);
-
-        var resolutionModeLabel = new Label
-        {
-            Text = "Resolution Mode:",
-            Location = new Point(15, 25),
-            Size = new Size(110, 23),
-            Font = new Font("Segoe UI", 9F),
-            ForeColor = _colorScheme.PrimaryTextColor,
-            BackColor = Color.Transparent
-        };
-        resolutionGroup.Controls.Add(resolutionModeLabel);
-
-        _resolutionModeCombo = new ComboBox
-        {
-            Location = new Point(130, 22),
-            Size = new Size(resolutionGroup.Width - 145, 23),
-            DropDownStyle = ComboBoxStyle.DropDownList,
-            Font = new Font("Segoe UI", 9F),
-            BackColor = _colorScheme.SurfaceColor,
-            ForeColor = _colorScheme.PrimaryTextColor
-        };
-
-        // Populate resolution mode combo box
-        foreach (var mode in Enum.GetValues<ResolutionMode>())
-        {
-            _resolutionModeCombo.Items.Add(new ComboBoxItem(mode.ToDisplayString(), mode));
+            ApplyThemeToControl(child);
         }
-        _resolutionModeCombo.SelectedIndexChanged += OnResolutionModeChanged;
-        resolutionGroup.Controls.Add(_resolutionModeCombo);
+    }
 
-        // Detected resolution display
-        _detectedResolutionLabel = new Label
+    private void ApplyThemeToLabel(Label label)
+    {
+        label.BackColor = Color.Transparent;
+
+        if (ReferenceEquals(label, _headerLabel) || ReferenceEquals(label, _titleLabel))
         {
-            Text = GetDetectedResolutionText(),
-            Location = new Point(15, 52),
-            Size = new Size(resolutionGroup.Width - 30, 15),
-            Font = new Font("Segoe UI", 8F),
-            ForeColor = _colorScheme.SecondaryTextColor,
-            BackColor = Color.Transparent
-        };
-        resolutionGroup.Controls.Add(_detectedResolutionLabel);
+            label.ForeColor = _colorScheme.AccentColor;
+            return;
+        }
 
-        // Custom resolution inputs
-        var customResLabel = new Label
+        if (ReferenceEquals(label, _taskStatusLabel))
         {
-            Text = "Custom (0 = auto):",
-            Location = new Point(15, 75),
-            Size = new Size(110, 23),
-            Font = new Font("Segoe UI", 9F),
-            ForeColor = _colorScheme.PrimaryTextColor,
-            BackColor = Color.Transparent
-        };
-        resolutionGroup.Controls.Add(customResLabel);
+            label.ForeColor = TaskManager.IsTaskEnabled() ? _colorScheme.SuccessColor : _colorScheme.WarningColor;
+            return;
+        }
 
-        _customWidthTextBox = new TextBox
+        if (ReferenceEquals(label, _detectedResolutionLabel) ||
+            ReferenceEquals(label, _helpLabel) ||
+            ReferenceEquals(label, _satelliteCountLabel) ||
+            ReferenceEquals(label, _infoLabel) ||
+            ReferenceEquals(label, _copyrightLabel))
         {
-            Location = new Point(130, 72),
-            Size = new Size(70, 23),
-            Font = new Font("Segoe UI", 9F),
-            BackColor = _colorScheme.SurfaceColor,
-            ForeColor = _colorScheme.PrimaryTextColor,
-            Text = "0"
-        };
-        _customWidthTextBox.TextChanged += OnCustomResolutionChanged;
-        resolutionGroup.Controls.Add(_customWidthTextBox);
+            label.ForeColor = _colorScheme.SecondaryTextColor;
+            return;
+        }
 
-        var xLabel = new Label
+        label.ForeColor = _colorScheme.PrimaryTextColor;
+    }
+
+    private void ApplyThemeToButtons()
+    {
+        ApplyButtonTheme(_previewButton, primary: true);
+        ApplyButtonTheme(_addSatelliteButton, primary: true);
+        ApplyButtonTheme(_resetButton);
+        ApplyButtonTheme(_closeButton);
+        ApplyButtonTheme(_editSatelliteButton);
+        ApplyButtonTheme(_removeSatelliteButton);
+        ApplyButtonTheme(_moveUpButton);
+        ApplyButtonTheme(_moveDownButton);
+    }
+
+    private void ApplyButtonTheme(Button? button, bool primary = false)
+    {
+        if (button == null)
+            return;
+
+        button.FlatStyle = FlatStyle.Flat;
+
+        if (primary && button.Enabled)
         {
-            Text = "x",
-            Location = new Point(205, 75),
-            Size = new Size(15, 23),
-            Font = new Font("Segoe UI", 9F),
-            ForeColor = _colorScheme.PrimaryTextColor,
-            BackColor = Color.Transparent
-        };
-        resolutionGroup.Controls.Add(xLabel);
-
-        _customHeightTextBox = new TextBox
+            button.BackColor = _colorScheme.AccentColor;
+            button.ForeColor = Color.White;
+            button.FlatAppearance.BorderSize = 0;
+        }
+        else
         {
-            Location = new Point(220, 72),
-            Size = new Size(70, 23),
-            Font = new Font("Segoe UI", 9F),
-            BackColor = _colorScheme.SurfaceColor,
-            ForeColor = _colorScheme.PrimaryTextColor,
-            Text = "0"
-        };
-        _customHeightTextBox.TextChanged += OnCustomResolutionChanged;
-        resolutionGroup.Controls.Add(_customHeightTextBox);
+            button.BackColor = _colorScheme.ButtonBackColor;
+            button.ForeColor = button.Enabled ? _colorScheme.PrimaryTextColor : _colorScheme.SecondaryTextColor;
+            button.FlatAppearance.BorderSize = 1;
+            button.FlatAppearance.BorderColor = _colorScheme.BorderColor;
+        }
+    }
 
-        var customHelpLabel = new Label
+    private void ApplyThemeToTabPages()
+    {
+        if (_tabControl == null)
+            return;
+
+        _tabControl.BackColor = _colorScheme.BackgroundColor;
+        _tabControl.ForeColor = _colorScheme.PrimaryTextColor;
+
+        foreach (TabPage page in _tabControl.TabPages)
         {
-            Text = "Set both to 0 to use detected screen resolution",
-            Location = new Point(15, 100),
-            Size = new Size(resolutionGroup.Width - 30, 15),
-            Font = new Font("Segoe UI", 8F),
-            ForeColor = _colorScheme.SecondaryTextColor,
-            BackColor = Color.Transparent
-        };
-        resolutionGroup.Controls.Add(customHelpLabel);
+            page.BackColor = _colorScheme.BackgroundColor;
+            page.ForeColor = _colorScheme.PrimaryTextColor;
+        }
+    }
 
-        currentY += 150;
+    private void UpdateAboutVersionLabel()
+    {
+        if (_versionLabel == null)
+            return;
 
-        // Preview Button
-        _previewButton = new Button
-        {
-            Text = "Update Wallpaper Now",
-            Location = new Point(padding, currentY),
-            Size = new Size(this.ClientSize.Width - 2 * padding, 35),
-            Font = new Font("Segoe UI", 9F),
-            BackColor = _colorScheme.AccentColor,
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Cursor = Cursors.Hand
-        };
-        _previewButton.FlatAppearance.BorderSize = 0;
-        _previewButton.Click += OnPreviewClick;
-        this.Controls.Add(_previewButton);
-        currentY += 50;
-
-        // Bottom buttons
-        _resetButton = new Button
-        {
-            Text = "Reset to Defaults",
-            Location = new Point(padding, currentY),
-            Size = new Size(150, 30),
-            Font = new Font("Segoe UI", 9F),
-            BackColor = _colorScheme.ButtonBackColor,
-            ForeColor = _colorScheme.PrimaryTextColor,
-            FlatStyle = FlatStyle.Flat,
-            Cursor = Cursors.Hand
-        };
-        _resetButton.FlatAppearance.BorderSize = 1;
-        _resetButton.FlatAppearance.BorderColor = _colorScheme.BorderColor;
-        _resetButton.Click += OnResetClick;
-        this.Controls.Add(_resetButton);
-
-
-        _closeButton = new Button
-        {
-            Text = "Close",
-            Location = new Point(this.ClientSize.Width - padding - 80, currentY),
-            Size = new Size(80, 30),
-            Font = new Font("Segoe UI", 9F),
-            BackColor = _colorScheme.ButtonBackColor,
-            ForeColor = _colorScheme.PrimaryTextColor,
-            FlatStyle = FlatStyle.Flat,
-            Cursor = Cursors.Hand
-        };
-        _closeButton.FlatAppearance.BorderSize = 1;
-        _closeButton.FlatAppearance.BorderColor = _colorScheme.BorderColor;
-        _closeButton.Click += (s, e) => MinimizeToTray();
-        this.Controls.Add(_closeButton);
+        var version = Assembly.GetExecutingAssembly().GetName().Version;
+        _versionLabel.Text = version == null
+            ? "Version 2.0"
+            : $"Version {version.Major}.{version.Minor}";
     }
 
     /// <summary>
-    /// Initializes the system tray icon with a context menu for quick access to application functions.
-    /// Sets up menu items for showing settings, updating wallpaper, and exiting the application.
+    /// Initializes the system tray icon.
     /// </summary>
     private void InitializeTrayIcon()
     {
@@ -466,32 +239,32 @@ public partial class SettingsForm : Form
         };
 
         var contextMenu = new ContextMenuStrip();
-        
+
         var showSettingsItem = new ToolStripMenuItem("Settings")
         {
             Font = new Font(contextMenu.Font, FontStyle.Bold)
         };
         showSettingsItem.Click += (s, e) => ShowSettingsWindow();
         contextMenu.Items.Add(showSettingsItem);
-        
+
         contextMenu.Items.Add(new ToolStripSeparator());
-        
+
         var updateNowItem = new ToolStripMenuItem("Update Wallpaper Now");
         updateNowItem.Click += (s, e) => _ = UpdateWallpaperNow();
         contextMenu.Items.Add(updateNowItem);
-        
+
         contextMenu.Items.Add(new ToolStripSeparator());
-        
+
         var exitItem = new ToolStripMenuItem("Exit");
         exitItem.Click += (s, e) => ExitApplication();
         contextMenu.Items.Add(exitItem);
-        
+
         _notifyIcon.ContextMenuStrip = contextMenu;
         _notifyIcon.DoubleClick += (s, e) => ShowSettingsWindow();
     }
 
     /// <summary>
-    /// Shows the settings window by bringing it to the foreground and restoring it from the system tray.
+    /// Shows the settings window.
     /// </summary>
     private void ShowSettingsWindow()
     {
@@ -512,14 +285,13 @@ public partial class SettingsForm : Form
     /// <summary>
     /// Loads the application icon from embedded resources.
     /// </summary>
-    /// <returns>The application icon, or a system icon as fallback.</returns>
     private static Icon LoadEmbeddedIcon()
     {
         try
         {
             var assembly = Assembly.GetExecutingAssembly();
             var resourceName = "WorldMapWallpaper.Settings.Resources.AppIcon.ico";
-            
+
             using var stream = assembly.GetManifestResourceStream(resourceName);
             if (stream != null)
             {
@@ -528,22 +300,21 @@ public partial class SettingsForm : Form
         }
         catch
         {
-            // Fall back to system icon if embedded resource loading fails
+            // Fall back to system icon
         }
-        
+
         return SystemIcons.Application;
     }
 
     /// <summary>
-    /// Asynchronously updates the wallpaper immediately and displays notification balloons to inform the user of the progress and result.
+    /// Updates the wallpaper immediately.
     /// </summary>
-    /// <returns>A task representing the asynchronous operation.</returns>
     private async Task UpdateWallpaperNow()
     {
         try
         {
             _notifyIcon!.ShowBalloonTip(2000, "World Map Wallpaper", "Updating wallpaper...", ToolTipIcon.Info);
-            
+
             var success = TaskManager.RunTaskNow();
             if (success)
                 _notifyIcon.ShowBalloonTip(2000, "World Map Wallpaper", "Wallpaper updated successfully!", ToolTipIcon.Info);
@@ -557,7 +328,7 @@ public partial class SettingsForm : Form
     }
 
     /// <summary>
-    /// Exits the application completely by disposing of the tray icon and calling Application.Exit().
+    /// Exits the application.
     /// </summary>
     private void ExitApplication()
     {
@@ -566,31 +337,31 @@ public partial class SettingsForm : Form
     }
 
     /// <summary>
-    /// Loads the current settings from the application configuration and updates the form controls to reflect these values.
+    /// Loads settings into form controls.
     /// </summary>
     private void LoadSettings()
     {
+        // General tab
         _issCheckBox.Checked = Shared.Settings.ShowISS;
         _timeZonesCheckBox.Checked = Shared.Settings.ShowTimeZones;
         _politicalMapCheckBox.Checked = Shared.Settings.ShowPoliticalMap;
+        _taskStatusLabel.Text = GetTaskStatusText();
+        _detectedResolutionLabel.Text = GetDetectedResolutionText();
 
         var currentInterval = Shared.Settings.UpdateInterval;
         for (var i = 0; i < _updateIntervalCombo.Items.Count; i++)
         {
-            if (_updateIntervalCombo.Items[i] is ComboBoxItem item &&
-                item.Value.Equals(currentInterval))
+            if (_updateIntervalCombo.Items[i] is ComboBoxItem item && item.Value.Equals(currentInterval))
             {
                 _updateIntervalCombo.SelectedIndex = i;
                 break;
             }
         }
 
-        // Load resolution settings
         var currentResMode = Shared.Settings.ResolutionMode;
         for (var i = 0; i < _resolutionModeCombo.Items.Count; i++)
         {
-            if (_resolutionModeCombo.Items[i] is ComboBoxItem item &&
-                item.Value.Equals(currentResMode))
+            if (_resolutionModeCombo.Items[i] is ComboBoxItem item && item.Value.Equals(currentResMode))
             {
                 _resolutionModeCombo.SelectedIndex = i;
                 break;
@@ -599,12 +370,75 @@ public partial class SettingsForm : Form
 
         _customWidthTextBox.Text = Shared.Settings.CustomResolutionWidth.ToString();
         _customHeightTextBox.Text = Shared.Settings.CustomResolutionHeight.ToString();
-
         UpdateCustomResolutionState();
+
+        // Satellites tab
+        _satelliteTrackingCheckBox.Checked = Shared.Settings.SatelliteTrackingEnabled;
+        LoadSatelliteList();
+        _maxVisibleUpDown.Value = SatelliteConfigManager.Instance.MaxVisibleSatellites;
+        UpdateSatelliteUI();
     }
 
     /// <summary>
-    /// Saves the current form control values to the application settings and updates the task schedule if necessary.
+    /// Loads the satellite list from configuration.
+    /// </summary>
+    private void LoadSatelliteList()
+    {
+        _satelliteListBox.Items.Clear();
+
+        var satellites = SatelliteConfigManager.Instance.Satellites
+            .OrderBy(s => s.Priority)
+            .ToList();
+
+        foreach (var sat in satellites)
+        {
+            _satelliteListBox.Items.Add(new SatelliteListItem(sat));
+        }
+
+        UpdateSatelliteCountLabel();
+    }
+
+    /// <summary>
+    /// Updates the satellite count label.
+    /// </summary>
+    private void UpdateSatelliteCountLabel()
+    {
+        var total = SatelliteConfigManager.Instance.Satellites.Count;
+        var enabled = SatelliteConfigManager.Instance.Satellites.Count(s => s.Enabled);
+        _satelliteCountLabel.Text = $"({enabled} enabled / {total} total)";
+    }
+
+    /// <summary>
+    /// Updates the satellite UI button states.
+    /// </summary>
+    private void UpdateSatelliteUI()
+    {
+        var hasSelection = _satelliteListBox.SelectedItem != null;
+        var selectedIndex = _satelliteListBox.SelectedIndex;
+
+        _editSatelliteButton.Enabled = hasSelection;
+        _removeSatelliteButton.Enabled = hasSelection;
+        _moveUpButton.Enabled = hasSelection && selectedIndex > 0;
+        _moveDownButton.Enabled = hasSelection && selectedIndex < _satelliteListBox.Items.Count - 1;
+
+        var trackingEnabled = _satelliteTrackingCheckBox.Checked;
+        _satelliteListBox.Enabled = trackingEnabled;
+        _addSatelliteButton.Enabled = trackingEnabled;
+        _maxVisibleUpDown.Enabled = trackingEnabled;
+
+        if (!trackingEnabled)
+        {
+            _editSatelliteButton.Enabled = false;
+            _removeSatelliteButton.Enabled = false;
+            _moveUpButton.Enabled = false;
+            _moveDownButton.Enabled = false;
+        }
+
+        ApplyThemeToButtons();
+    }
+
+    /// <summary>
+    /// Saves current settings.
     /// </summary>
     private void SaveSettings()
     {
@@ -618,7 +452,6 @@ public partial class SettingsForm : Form
             TaskManager.UpdateTaskSchedule((UpdateInterval)item.Value);
         }
 
-        // Save resolution settings
         if (_resolutionModeCombo.SelectedItem is ComboBoxItem resItem)
         {
             Shared.Settings.ResolutionMode = (ResolutionMode)resItem.Value;
@@ -633,55 +466,26 @@ public partial class SettingsForm : Form
         {
             Shared.Settings.CustomResolutionHeight = Math.Max(0, height);
         }
+
+        _taskStatusLabel.Text = GetTaskStatusText();
+        _detectedResolutionLabel.Text = GetDetectedResolutionText();
+        ApplyThemeToLabel(_taskStatusLabel);
+        ApplyThemeToLabel(_detectedResolutionLabel);
     }
 
-    /// <summary>
-    /// Event handler that is triggered when any of the visual element checkboxes are changed.
-    /// Automatically saves the new settings.
-    /// </summary>
-    /// <param name="sender">The checkbox control that triggered the event.</param>
-    /// <param name="e">Event arguments containing information about the change.</param>
-    private void OnSettingChanged(object? sender, EventArgs e)
-    {
-        SaveSettings();
-    }
+    // Event handlers
+    private void OnSettingChanged(object? sender, EventArgs e) => SaveSettings();
 
-    /// <summary>
-    /// Event handler that is triggered when the update interval combo box selection changes.
-    /// Automatically saves the new settings and updates the task schedule.
-    /// </summary>
-    /// <param name="sender">The combo box control that triggered the event.</param>
-    /// <param name="e">Event arguments containing information about the selection change.</param>
-    private void OnUpdateIntervalChanged(object? sender, EventArgs e)
-    {
-        SaveSettings();
-    }
+    private void OnUpdateIntervalChanged(object? sender, EventArgs e) => SaveSettings();
 
-    /// <summary>
-    /// Event handler for resolution mode combo box changes.
-    /// </summary>
-    /// <param name="sender">The combo box control that triggered the event.</param>
-    /// <param name="e">Event arguments for the selection change.</param>
     private void OnResolutionModeChanged(object? sender, EventArgs e)
     {
         SaveSettings();
         UpdateCustomResolutionState();
     }
 
-    /// <summary>
-    /// Event handler for custom resolution text box changes.
-    /// </summary>
-    /// <param name="sender">The text box control that triggered the event.</param>
-    /// <param name="e">Event arguments for the text change.</param>
-    private void OnCustomResolutionChanged(object? sender, EventArgs e)
-    {
-        SaveSettings();
-    }
+    private void OnCustomResolutionChanged(object? sender, EventArgs e) => SaveSettings();
 
-    /// <summary>
-    /// Updates the enabled state of custom resolution inputs based on mode.
-    /// Custom resolution inputs are only enabled when resolution mode is not None.
-    /// </summary>
     private void UpdateCustomResolutionState()
     {
         var mode = ResolutionMode.None;
@@ -695,10 +499,6 @@ public partial class SettingsForm : Form
         _customHeightTextBox.Enabled = enableCustom;
     }
 
-    /// <summary>
-    /// Gets the detected screen resolution as a display string.
-    /// </summary>
-    /// <returns>A string showing the detected primary screen resolution.</returns>
     private static string GetDetectedResolutionText()
     {
         try
@@ -709,19 +509,96 @@ public partial class SettingsForm : Form
                 return $"Detected: {screen.Bounds.Width} x {screen.Bounds.Height}";
             }
         }
-        catch
-        {
-            // Ignore detection errors
-        }
+        catch { }
         return "Detected: Unable to detect";
     }
 
-    /// <summary>
-    /// Event handler for the preview/update button click. Temporarily disables the button, 
-    /// saves current settings, attempts to update the wallpaper, and provides user feedback.
-    /// </summary>
-    /// <param name="sender">The button control that was clicked.</param>
-    /// <param name="e">Event arguments for the click event.</param>
+    private void OnSatelliteTrackingChanged(object? sender, EventArgs e)
+    {
+        Shared.Settings.SatelliteTrackingEnabled = _satelliteTrackingCheckBox.Checked;
+        UpdateSatelliteUI();
+    }
+
+    private void OnSatelliteSelectionChanged(object? sender, EventArgs e) => UpdateSatelliteUI();
+
+    private void OnSatelliteDoubleClick(object? sender, EventArgs e) => OnEditSatelliteClick(sender, e);
+
+    private void OnAddSatelliteClick(object? sender, EventArgs e)
+    {
+        using var dialog = new AddSatelliteDialog();
+        if (dialog.ShowDialog(this) == DialogResult.OK)
+        {
+            LoadSatelliteList();
+        }
+    }
+
+    private void OnEditSatelliteClick(object? sender, EventArgs e)
+    {
+        if (_satelliteListBox.SelectedItem is SatelliteListItem item)
+        {
+            using var dialog = new SatelliteEditDialog(item.Config);
+            if (dialog.ShowDialog(this) == DialogResult.OK && dialog.WasModified)
+            {
+                LoadSatelliteList();
+            }
+        }
+    }
+
+    private void OnRemoveSatelliteClick(object? sender, EventArgs e)
+    {
+        if (_satelliteListBox.SelectedItem is SatelliteListItem item)
+        {
+            var result = MessageBox.Show(
+                $"Remove {item.Config.Name} from tracking?",
+                "Confirm Removal",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
+
+            if (result == DialogResult.Yes)
+            {
+                SatelliteConfigManager.Instance.RemoveSatellite(item.Config.NoradId);
+                LoadSatelliteList();
+            }
+        }
+    }
+
+    private void OnMoveUpClick(object? sender, EventArgs e)
+    {
+        var index = _satelliteListBox.SelectedIndex;
+        if (index > 0)
+        {
+            ReorderSatellites(index, index - 1);
+        }
+    }
+
+    private void OnMoveDownClick(object? sender, EventArgs e)
+    {
+        var index = _satelliteListBox.SelectedIndex;
+        if (index < _satelliteListBox.Items.Count - 1)
+        {
+            ReorderSatellites(index, index + 1);
+        }
+    }
+
+    private void ReorderSatellites(int fromIndex, int toIndex)
+    {
+        var items = _satelliteListBox.Items.Cast<SatelliteListItem>().ToList();
+        var item = items[fromIndex];
+        items.RemoveAt(fromIndex);
+        items.Insert(toIndex, item);
+
+        var noradIds = items.Select(i => i.Config.NoradId);
+        SatelliteConfigManager.Instance.ReorderSatellites(noradIds);
+
+        LoadSatelliteList();
+        _satelliteListBox.SelectedIndex = toIndex;
+    }
+
+    private void OnMaxVisibleChanged(object? sender, EventArgs e)
+    {
+        SatelliteConfigManager.Instance.MaxVisibleSatellites = (int)_maxVisibleUpDown.Value;
+    }
+
     private async void OnPreviewClick(object? sender, EventArgs e)
     {
         _previewButton.Enabled = false;
@@ -730,7 +607,7 @@ public partial class SettingsForm : Form
         try
         {
             SaveSettings();
-            
+
             if (TaskManager.RunTaskNow())
             {
                 _previewButton.Text = "Updated!";
@@ -749,16 +626,10 @@ public partial class SettingsForm : Form
         }
     }
 
-    /// <summary>
-    /// Event handler for the reset button click. Prompts the user for confirmation 
-    /// before resetting all settings to their default values.
-    /// </summary>
-    /// <param name="sender">The button control that was clicked.</param>
-    /// <param name="e">Event arguments for the click event.</param>
     private void OnResetClick(object? sender, EventArgs e)
     {
         var result = MessageBox.Show(
-            "Are you sure you want to reset all settings to their default values?",
+            "Reset all settings to defaults?\nThis will also reset satellite configuration to ISS only.",
             "Reset Settings",
             MessageBoxButtons.YesNo,
             MessageBoxIcon.Question);
@@ -766,15 +637,11 @@ public partial class SettingsForm : Form
         if (result == DialogResult.Yes)
         {
             Shared.Settings.ResetToDefaults();
+            SatelliteConfigManager.Instance.ResetToDefaults();
             LoadSettings();
         }
     }
 
-
-    /// <summary>
-    /// Initializes and starts the wallpaper monitoring service to detect when the user changes 
-    /// to a different wallpaper provider.
-    /// </summary>
     private void StartWallpaperMonitoring()
     {
         _wallpaperMonitor = new WallpaperMonitor();
@@ -782,52 +649,28 @@ public partial class SettingsForm : Form
         _wallpaperMonitor.Start();
     }
 
-    /// <summary>
-    /// Event handler that is triggered when the system wallpaper changes. If the user has switched 
-    /// to a different wallpaper, disables the automatic update task and shows a notification.
-    /// </summary>
-    /// <param name="isOurWallpaper">True if the current wallpaper is from this application; false if the user switched to a different wallpaper.</param>
     private void OnWallpaperChanged(bool isOurWallpaper)
     {
         if (!isOurWallpaper)
         {
-            // User switched to a different wallpaper - disable our task
             TaskManager.EnableTask(false);
             Shared.Settings.IsActive = false;
-            
-            // Show notification instead of closing
+
             if (InvokeRequired)
-                Invoke(new Action(() => _notifyIcon?.ShowBalloonTip(3000, "World Map Wallpaper", "Automatic updates disabled - you switched to a different wallpaper", ToolTipIcon.Info)));
+                Invoke(new Action(() => _notifyIcon?.ShowBalloonTip(3000, "World Map Wallpaper",
+                    "Automatic updates disabled - you switched to a different wallpaper", ToolTipIcon.Info)));
             else
-                _notifyIcon?.ShowBalloonTip(3000, "World Map Wallpaper", "Automatic updates disabled - you switched to a different wallpaper", ToolTipIcon.Info);
+                _notifyIcon?.ShowBalloonTip(3000, "World Map Wallpaper",
+                    "Automatic updates disabled - you switched to a different wallpaper", ToolTipIcon.Info);
         }
     }
 
-    /// <summary>
-    /// Overrides the base SetVisibleCore method to prevent the form from becoming visible 
-    /// when it should be minimized to the system tray.
-    /// </summary>
-    /// <param name="value">The visibility state to set.</param>
-    protected override void SetVisibleCore(bool value)
-    {
-        // Prevent the form from becoming visible at design time or when minimized to tray
-        base.SetVisibleCore(!_minimizeToTray && value);
-    }
-
-    /// <summary>
-    /// Overrides the form closing behavior to minimize to the system tray instead of actually closing 
-    /// when the user clicks the close button.
-    /// </summary>
-    /// <param name="e">Event arguments that can be used to cancel the closing operation.</param>
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
-        // Minimize to tray instead of closing when user clicks X
         if (e.CloseReason == CloseReason.UserClosing)
         {
             e.Cancel = true;
-            this.WindowState = FormWindowState.Minimized;
-            this.ShowInTaskbar = false;
-            this.Visible = false;
+            MinimizeToTray();
         }
         else
         {
@@ -835,11 +678,6 @@ public partial class SettingsForm : Form
         }
     }
 
-    /// <summary>
-    /// Overrides the form closed event to properly dispose of resources including 
-    /// the wallpaper monitor and system tray icon.
-    /// </summary>
-    /// <param name="e">Event arguments containing information about how the form was closed.</param>
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
         _wallpaperMonitor?.Stop();
@@ -848,10 +686,6 @@ public partial class SettingsForm : Form
         base.OnFormClosed(e);
     }
 
-    /// <summary>
-    /// Gets the current task status as a user-friendly string.
-    /// </summary>
-    /// <returns>A string describing the current task status.</returns>
     private static string GetTaskStatusText()
     {
         if (!TaskManager.TaskExists())
@@ -865,38 +699,40 @@ public partial class SettingsForm : Form
         {
             var (state, nextRun) = taskInfo.Value;
             var nextRunText = nextRun?.ToString("MMM d, h:mm tt") ?? "Not scheduled";
-            
-            // Get trigger count for additional info
             var triggers = TaskManager.GetTriggerInfo();
-            var triggerCount = triggers.Count;
-            
-            return $"Task active with {triggerCount} triggers - Next: {nextRunText}";
+            return $"Task active with {triggers.Count} triggers - Next: {nextRunText}";
         }
 
         return "Task status unknown";
     }
 
     /// <summary>
-    /// Helper class for ComboBox items that associates a display string with an underlying value.
+    /// Helper class for ComboBox items.
     /// </summary>
-    /// <param name="display">The text to display in the combo box.</param>
-    /// <param name="value">The underlying value associated with this item.</param>
     private class ComboBoxItem(string display, object value)
     {
-        /// <summary>
-        /// Gets the display text for this combo box item.
-        /// </summary>
         public string Display { get; } = display;
-        
-        /// <summary>
-        /// Gets the underlying value associated with this combo box item.
-        /// </summary>
         public object Value { get; } = value;
-
-        /// <summary>
-        /// Returns the display string for this combo box item.
-        /// </summary>
-        /// <returns>The display text.</returns>
         public override string ToString() => Display;
+    }
+
+    /// <summary>
+    /// Helper class for satellite list items.
+    /// </summary>
+    private class SatelliteListItem
+    {
+        public SatelliteConfig Config { get; }
+
+        public SatelliteListItem(SatelliteConfig config)
+        {
+            Config = config;
+        }
+
+        public override string ToString()
+        {
+            var status = Config.Enabled ? "" : " [disabled]";
+            var lagrange = Config.IsLagrangePoint ? " [L-point]" : "";
+            return $"{Config.Name} (#{Config.NoradId}){status}{lagrange}";
+        }
     }
 }
