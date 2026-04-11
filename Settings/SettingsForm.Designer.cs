@@ -124,8 +124,6 @@ namespace WorldMapWallpaper.Settings
             };
             this.Controls.Add(_tabControl);
 
-            var tabContentWidth = _tabControl.Width - 26;
-
             // Create tabs
             _generalTab = new TabPage
             {
@@ -141,7 +139,7 @@ namespace WorldMapWallpaper.Settings
                 Text = "Visual Elements",
                 Font = new Font("Segoe UI", 9F, FontStyle.Bold),
                 Location = new Point(5, 10),
-                Size = new Size(tabContentWidth, 105),
+                Size = new Size(_generalTab.ClientSize.Width - 10, 105),
                 ForeColor = Color.Black,
                 BackColor = SystemColors.Control
             };
@@ -186,7 +184,7 @@ namespace WorldMapWallpaper.Settings
                 Text = "Update Settings",
                 Font = new Font("Segoe UI", 9F, FontStyle.Bold),
                 Location = new Point(5, 125),
-                Size = new Size(tabContentWidth, 90),
+                Size = new Size(_generalTab.ClientSize.Width - 10, 90),
                 ForeColor = Color.Black,
                 BackColor = SystemColors.Control
             };
@@ -237,7 +235,7 @@ namespace WorldMapWallpaper.Settings
                 Text = "Resolution Settings",
                 Font = new Font("Segoe UI", 9F, FontStyle.Bold),
                 Location = new Point(5, 225),
-                Size = new Size(tabContentWidth, 160),
+                Size = new Size(_generalTab.ClientSize.Width - 10, 160),
                 ForeColor = Color.Black,
                 BackColor = SystemColors.Control
             };

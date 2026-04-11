@@ -48,7 +48,7 @@ namespace WorldMapWallpaper
         private static string GetWallpaperOutputDirectory()
         {
             var configuredDirectory = Settings.WallpaperOutputDirectory;
-            var fallbackDirectory = AppStoragePaths.GetDefaultWallpaperOutputDirectory(AppStoragePaths.InstallScope);
+            var fallbackDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
 
             try
             {
@@ -57,13 +57,13 @@ namespace WorldMapWallpaper
                     : configuredDirectory;
 
                 Directory.CreateDirectory(outputDirectory);
-                return NormalizeRequiredDirectoryPath(outputDirectory);
+                return outputDirectory;
             }
             catch (Exception ex)
             {
                 log.Info($"Failed to use configured wallpaper output directory \"{configuredDirectory}\": {ex.Message}");
                 Directory.CreateDirectory(fallbackDirectory);
-                return NormalizeRequiredDirectoryPath(fallbackDirectory);
+                return fallbackDirectory;
             }
         }
 
@@ -76,10 +76,9 @@ namespace WorldMapWallpaper
             log.Debug($"The current desktop wallpaper name is \"{wpfn ?? "null"}\".");
 
             var outputDirectory = GetWallpaperOutputDirectory();
-            var currentWallpaperDirectory = NormalizeDirectoryPath(Path.GetDirectoryName(wpfn));
             var fileName = Path.Combine(outputDirectory, "WorldMap01.jpg");
 
-            if (string.Equals(currentWallpaperDirectory, outputDirectory, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(Path.GetDirectoryName(wpfn), outputDirectory, StringComparison.OrdinalIgnoreCase))
             {
                 var currentFileName = Path.GetFileName(wpfn);
                 if (string.Equals(currentFileName, "WorldMap01.jpg", StringComparison.OrdinalIgnoreCase))
@@ -93,21 +92,6 @@ namespace WorldMapWallpaper
             }
 
             return fileName;
-        }
-
-        private static string? NormalizeDirectoryPath(string? directoryPath)
-        {
-            if (string.IsNullOrWhiteSpace(directoryPath))
-                return null;
-
-            return Path.GetFullPath(directoryPath)
-                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        }
-
-        private static string NormalizeRequiredDirectoryPath(string directoryPath)
-        {
-            return Path.GetFullPath(directoryPath)
-                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         }
 
         /// <summary>
