@@ -150,12 +150,11 @@ public class BatchTleService
             _logAction?.Invoke($"Trying batch TLE fetch: {url}");
 
             var response = await _httpClient.GetStringAsync(url, cts.Token);
+            var parsedTles = ParseBatchTleResponse(response);
 
-            // Parse all TLEs from response
             foreach (var noradId in noradIds)
             {
-                var tle = TleData.ExtractSatelliteTle(response, noradId);
-                if (tle != null)
+                if (parsedTles.TryGetValue(noradId, out var tle))
                 {
                     results[noradId] = tle;
                 }
@@ -170,6 +169,34 @@ public class BatchTleService
         catch (Exception ex)
         {
             _logAction?.Invoke($"Batch TLE fetch failed: {ex.Message}");
+        }
+
+        return results;
+    }
+
+    /// <summary>
+    /// Parses a multi-satellite TLE response once into a lookup keyed by NORAD ID.
+    /// </summary>
+    private static Dictionary<int, TleData> ParseBatchTleResponse(string response)
+    {
+        var results = new Dictionary<int, TleData>();
+        var lines = response.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+
+        for (var i = 0; i + 2 < lines.Length; i += 3)
+        {
+            var line1 = lines[i + 1].Trim();
+            if (!line1.StartsWith("1 ") || line1.Length < 7)
+                continue;
+
+            if (!int.TryParse(line1.Substring(2, 5).Trim(), out var noradId))
+                continue;
+
+            var tleBlock = string.Join(Environment.NewLine, lines[i].Trim(), line1, lines[i + 2].Trim());
+            var tle = TleData.ParseFromText(tleBlock);
+            if (tle != null)
+            {
+                results[noradId] = tle;
+            }
         }
 
         return results;

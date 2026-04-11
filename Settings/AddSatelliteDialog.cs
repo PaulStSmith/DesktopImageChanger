@@ -1,3 +1,4 @@
+using System.Globalization;
 using WorldMapWallpaper.Shared;
 using WorldMapWallpaper.Shared.Models;
 using WorldMapWallpaper.Shared.Services;
@@ -494,7 +495,7 @@ public partial class AddSatelliteDialog : Form
             if (tle.Line2.Length >= 63)
             {
                 var meanMotionStr = tle.Line2.Substring(52, 11);
-                if (double.TryParse(meanMotionStr, out var meanMotion))
+                if (double.TryParse(meanMotionStr, NumberStyles.Float, CultureInfo.InvariantCulture, out var meanMotion))
                 {
                     return meanMotion;
                 }
