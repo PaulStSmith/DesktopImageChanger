@@ -57,13 +57,13 @@ namespace WorldMapWallpaper
                     : configuredDirectory;
 
                 Directory.CreateDirectory(outputDirectory);
-                return outputDirectory;
+                return NormalizeRequiredDirectoryPath(outputDirectory);
             }
             catch (Exception ex)
             {
                 log.Info($"Failed to use configured wallpaper output directory \"{configuredDirectory}\": {ex.Message}");
                 Directory.CreateDirectory(fallbackDirectory);
-                return fallbackDirectory;
+                return NormalizeRequiredDirectoryPath(fallbackDirectory);
             }
         }
 
@@ -76,9 +76,10 @@ namespace WorldMapWallpaper
             log.Debug($"The current desktop wallpaper name is \"{wpfn ?? "null"}\".");
 
             var outputDirectory = GetWallpaperOutputDirectory();
+            var currentWallpaperDirectory = NormalizeDirectoryPath(Path.GetDirectoryName(wpfn));
             var fileName = Path.Combine(outputDirectory, "WorldMap01.jpg");
 
-            if (string.Equals(Path.GetDirectoryName(wpfn), outputDirectory, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(currentWallpaperDirectory, outputDirectory, StringComparison.OrdinalIgnoreCase))
             {
                 var currentFileName = Path.GetFileName(wpfn);
                 if (string.Equals(currentFileName, "WorldMap01.jpg", StringComparison.OrdinalIgnoreCase))
@@ -92,6 +93,21 @@ namespace WorldMapWallpaper
             }
 
             return fileName;
+        }
+
+        private static string? NormalizeDirectoryPath(string? directoryPath)
+        {
+            if (string.IsNullOrWhiteSpace(directoryPath))
+                return null;
+
+            return Path.GetFullPath(directoryPath)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        }
+
+        private static string NormalizeRequiredDirectoryPath(string directoryPath)
+        {
+            return Path.GetFullPath(directoryPath)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         }
 
         /// <summary>
