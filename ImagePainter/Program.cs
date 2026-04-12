@@ -45,6 +45,28 @@ namespace WorldMapWallpaper
         /// to avoid file locking issues.
         /// </summary>
         /// <returns>The full path to the next wallpaper file.</returns>
+        private static string GetWallpaperOutputDirectory()
+        {
+            var configuredDirectory = Settings.WallpaperOutputDirectory;
+            var fallbackDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
+
+            try
+            {
+                var outputDirectory = string.IsNullOrWhiteSpace(configuredDirectory)
+                    ? fallbackDirectory
+                    : configuredDirectory;
+
+                Directory.CreateDirectory(outputDirectory);
+                return NormalizeRequiredDirectoryPath(outputDirectory);
+            }
+            catch (Exception ex)
+            {
+                log.Info($"Failed to use configured wallpaper output directory \"{configuredDirectory}\": {ex.Message}");
+                Directory.CreateDirectory(fallbackDirectory);
+                return NormalizeRequiredDirectoryPath(fallbackDirectory);
+            }
+        }
+
         private static string GetNextWallpaperFileName()
         {
             log.Info("Getting the current desktop wallpaper name.");
@@ -53,15 +75,39 @@ namespace WorldMapWallpaper
             var wpfn = sbWPFN.ToString();
             log.Debug($"The current desktop wallpaper name is \"{wpfn ?? "null"}\".");
 
-            var fileName = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "WorldMap01.jpg");
-            if (string.Compare(wpfn, fileName, true) == 0)
+            var outputDirectory = GetWallpaperOutputDirectory();
+            var currentWallpaperDirectory = NormalizeDirectoryPath(Path.GetDirectoryName(wpfn));
+            var fileName = Path.Combine(outputDirectory, "WorldMap01.jpg");
+
+            if (string.Equals(currentWallpaperDirectory, outputDirectory, StringComparison.OrdinalIgnoreCase))
             {
-                fileName = wpfn.EndsWith("01.jpg", StringComparison.OrdinalIgnoreCase)
-                         ? wpfn.Replace("01.jpg", "02.jpg")
-                         : wpfn.Replace("02.jpg", "01.jpg");
+                var currentFileName = Path.GetFileName(wpfn);
+                if (string.Equals(currentFileName, "WorldMap01.jpg", StringComparison.OrdinalIgnoreCase))
+                {
+                    fileName = Path.Combine(outputDirectory, "WorldMap02.jpg");
+                }
+                else if (string.Equals(currentFileName, "WorldMap02.jpg", StringComparison.OrdinalIgnoreCase))
+                {
+                    fileName = Path.Combine(outputDirectory, "WorldMap01.jpg");
+                }
             }
 
             return fileName;
+        }
+
+        private static string? NormalizeDirectoryPath(string? directoryPath)
+        {
+            if (string.IsNullOrWhiteSpace(directoryPath))
+                return null;
+
+            return Path.GetFullPath(directoryPath)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        }
+
+        private static string NormalizeRequiredDirectoryPath(string directoryPath)
+        {
+            return Path.GetFullPath(directoryPath)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         }
 
         /// <summary>

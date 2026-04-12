@@ -103,19 +103,31 @@ public class WallpaperMonitor : IDisposable
 
         try
         {
-            // Check if the wallpaper path contains our application directory or temp files
             var fileName = Path.GetFileName(wallpaperPath);
-            var directory = Path.GetDirectoryName(wallpaperPath);
-            var picFolder = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
+            var normalizedWallpaperDirectory = NormalizeDirectoryPath(Path.GetDirectoryName(wallpaperPath));
+            var normalizedOutputDirectory = NormalizeDirectoryPath(Settings.WallpaperOutputDirectory);
+            var isKnownWallpaperFile =
+                string.Equals(fileName, "WorldMap01.jpg", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(fileName, "WorldMap02.jpg", StringComparison.OrdinalIgnoreCase);
 
-            // Our wallpaper files typically have specific naming patterns
-            return fileName?.StartsWith("worldmap", StringComparison.OrdinalIgnoreCase) == true ||
-                   directory?.Contains(picFolder, StringComparison.OrdinalIgnoreCase) == true;
+            return isKnownWallpaperFile &&
+                   !string.IsNullOrWhiteSpace(normalizedWallpaperDirectory) &&
+                   !string.IsNullOrWhiteSpace(normalizedOutputDirectory) &&
+                   string.Equals(normalizedWallpaperDirectory, normalizedOutputDirectory, StringComparison.OrdinalIgnoreCase);
         }
         catch
         {
             return false;
         }
+    }
+
+    private static string? NormalizeDirectoryPath(string? directoryPath)
+    {
+        if (string.IsNullOrWhiteSpace(directoryPath))
+            return null;
+
+        return Path.GetFullPath(directoryPath)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
     }
 
     /// <summary>
