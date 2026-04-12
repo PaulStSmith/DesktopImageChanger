@@ -52,10 +52,7 @@ namespace WorldMapWallpaper
         /// <summary>
         /// Cache file path for storing last known ISS position.
         /// </summary>
-        private static readonly string CacheFilePath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), 
-            "WorldMapWallpaper", 
-            "iss_cache.json");
+        private static string CacheFilePath => AppStoragePaths.GetDataFilePath("iss_cache.json");
 
         /// <summary>
         /// ISS icon for day conditions (in sunlight).
