@@ -48,7 +48,7 @@ namespace WorldMapWallpaper
         private static string GetWallpaperOutputDirectory()
         {
             var configuredDirectory = Settings.WallpaperOutputDirectory;
-            var fallbackDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
+            var fallbackDirectory = AppStoragePaths.GetDefaultWallpaperOutputDirectory(AppStoragePaths.InstallScope);
 
             try
             {
