@@ -194,8 +194,8 @@ public static class Settings
         }
 
         var migration = TryMigrateRegistrySettings(defaults);
-        SaveSettings(migration.Settings);
-        DeleteMigratedRegistryValues(migration.MigratedKeys);
+        if (SaveSettings(migration.Settings))
+            DeleteMigratedRegistryValues(migration.MigratedKeys);
         return migration.Settings;
     }
 
@@ -206,28 +206,31 @@ public static class Settings
 
         foreach (var hive in GetMigrationHiveOrder())
         {
-            try
+            foreach (var registryView in GetMigrationViews())
             {
-                using var baseKey = RegistryKey.OpenBaseKey(hive, RegistryView.Registry64);
-                using var key = baseKey.OpenSubKey(RegistryKeyPath);
-                if (key == null)
-                    continue;
+                try
+                {
+                    using var baseKey = RegistryKey.OpenBaseKey(hive, registryView);
+                    using var key = baseKey.OpenSubKey(RegistryKeyPath);
+                    if (key == null)
+                        continue;
 
-                ApplyRegistryValue(key, "ShowISS", value => migrated.ShowISS = value, migratedKeys, hive);
-                ApplyRegistryValue(key, "ShowTimeZones", value => migrated.ShowTimeZones = value, migratedKeys, hive);
-                ApplyRegistryValue(key, "ShowPoliticalMap", value => migrated.ShowPoliticalMap = value, migratedKeys, hive);
-                ApplyRegistryValue<UpdateInterval>(key, "UpdateInterval", value => migrated.UpdateInterval = value, migratedKeys, hive);
-                ApplyRegistryValue(key, "IsActive", value => migrated.IsActive = value, migratedKeys, hive);
-                ApplyRegistryValue<ResolutionMode>(key, "ResolutionMode", value => migrated.ResolutionMode = value, migratedKeys, hive);
-                ApplyRegistryValue(key, "CustomResolutionWidth", value => migrated.CustomResolutionWidth = value, migratedKeys, hive);
-                ApplyRegistryValue(key, "CustomResolutionHeight", value => migrated.CustomResolutionHeight = value, migratedKeys, hive);
-                ApplyRegistryValue(key, "SatelliteTrackingEnabled", value => migrated.SatelliteTrackingEnabled = value, migratedKeys, hive);
-                ApplyRegistryValue(key, "WallpaperOutputDirectory", value => migrated.WallpaperOutputDirectory = value, migratedKeys, hive);
-                ApplyRegistryValue(key, "TrayAutoUpdateFallbackEnabled", value => migrated.TrayAutoUpdateFallbackEnabled = value, migratedKeys, hive);
-            }
-            catch
-            {
-                // Ignore malformed or inaccessible legacy settings.
+                    ApplyRegistryValue(key, "ShowISS", value => migrated.ShowISS = value, migratedKeys, hive);
+                    ApplyRegistryValue(key, "ShowTimeZones", value => migrated.ShowTimeZones = value, migratedKeys, hive);
+                    ApplyRegistryValue(key, "ShowPoliticalMap", value => migrated.ShowPoliticalMap = value, migratedKeys, hive);
+                    ApplyRegistryValue<UpdateInterval>(key, "UpdateInterval", value => migrated.UpdateInterval = value, migratedKeys, hive);
+                    ApplyRegistryValue(key, "IsActive", value => migrated.IsActive = value, migratedKeys, hive);
+                    ApplyRegistryValue<ResolutionMode>(key, "ResolutionMode", value => migrated.ResolutionMode = value, migratedKeys, hive);
+                    ApplyRegistryValue(key, "CustomResolutionWidth", value => migrated.CustomResolutionWidth = value, migratedKeys, hive);
+                    ApplyRegistryValue(key, "CustomResolutionHeight", value => migrated.CustomResolutionHeight = value, migratedKeys, hive);
+                    ApplyRegistryValue(key, "SatelliteTrackingEnabled", value => migrated.SatelliteTrackingEnabled = value, migratedKeys, hive);
+                    ApplyRegistryValue(key, "WallpaperOutputDirectory", value => migrated.WallpaperOutputDirectory = value, migratedKeys, hive);
+                    ApplyRegistryValue(key, "TrayAutoUpdateFallbackEnabled", value => migrated.TrayAutoUpdateFallbackEnabled = value, migratedKeys, hive);
+                }
+                catch
+                {
+                    // Ignore malformed or inaccessible legacy settings.
+                }
             }
         }
 
@@ -240,6 +243,17 @@ public static class Settings
             return [RegistryHive.LocalMachine, RegistryHive.CurrentUser];
 
         return [RegistryHive.CurrentUser, RegistryHive.LocalMachine];
+    }
+
+    private static IEnumerable<RegistryView> GetMigrationViews()
+    {
+        yield return RegistryView.Default;
+
+        if (Environment.Is64BitOperatingSystem)
+        {
+            var alternateView = Environment.Is64BitProcess ? RegistryView.Registry32 : RegistryView.Registry64;
+            yield return alternateView;
+        }
     }
 
     private static void ApplyRegistryValue(
@@ -308,34 +322,49 @@ public static class Settings
             .Distinct()
             .GroupBy(item => item.Hive))
         {
-            try
+            foreach (var registryView in GetMigrationViews())
             {
-                using var baseKey = RegistryKey.OpenBaseKey(group.Key, RegistryView.Registry64);
-                using var key = baseKey.OpenSubKey(RegistryKeyPath, writable: true);
-                if (key == null)
-                    continue;
-
-                foreach (var entry in group)
+                try
                 {
-                    key.DeleteValue(entry.Name, throwOnMissingValue: false);
+                    using var baseKey = RegistryKey.OpenBaseKey(group.Key, registryView);
+                    using var key = baseKey.OpenSubKey(RegistryKeyPath, writable: true);
+                    if (key == null)
+                        continue;
+
+                    foreach (var entry in group)
+                    {
+                        key.DeleteValue(entry.Name, throwOnMissingValue: false);
+                    }
                 }
-            }
-            catch
-            {
-                // Keep legacy values if cleanup fails.
+                catch
+                {
+                    // Keep legacy values if cleanup fails.
+                }
             }
         }
     }
 
-    private static void SaveSettings(SettingsData settings)
+    private static bool SaveSettings(SettingsData settings)
     {
         var normalized = NormalizeSettings(settings);
-        var settingsDirectory = Path.GetDirectoryName(SettingsFilePath);
-        if (!string.IsNullOrWhiteSpace(settingsDirectory))
-            Directory.CreateDirectory(settingsDirectory);
+        try
+        {
+            var settingsDirectory = Path.GetDirectoryName(SettingsFilePath);
+            if (!string.IsNullOrWhiteSpace(settingsDirectory))
+                Directory.CreateDirectory(settingsDirectory);
 
-        var json = JsonSerializer.Serialize(normalized, JsonOptions);
-        File.WriteAllText(SettingsFilePath, json);
+            var json = JsonSerializer.Serialize(normalized, JsonOptions);
+            File.WriteAllText(SettingsFilePath, json);
+            return true;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
     }
 
     private static SettingsData NormalizeSettings(SettingsData settings)
