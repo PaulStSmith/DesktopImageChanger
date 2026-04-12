@@ -16,6 +16,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		CLAUDE.md = CLAUDE.md
 		DateVersioning.targets = DateVersioning.targets
 		README.md = README.md
+		Update-FromMaster.ps1 = Update-FromMaster.ps1
 		USER_MANUAL.md = USER_MANUAL.md
 	EndProjectSection
 EndProject
