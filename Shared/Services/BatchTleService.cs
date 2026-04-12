@@ -37,10 +37,7 @@ public class BatchTleService
     /// <summary>
     /// Cache directory for TLE data.
     /// </summary>
-    private static readonly string CacheDirectory = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "WorldMapWallpaper", "tle_cache"
-    );
+    private static string CacheDirectory => AppStoragePaths.GetDataSubdirectory("tle_cache");
 
     /// <summary>
     /// Default cache expiration in hours (7 days).

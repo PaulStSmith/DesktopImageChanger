@@ -1,329 +1,738 @@
 ; ================================================================================================
 ; World Map Wallpaper - NSIS Installer Script
 ; ================================================================================================
-; This script creates an installer for the World Map Wallpaper application using NSIS 
-; (Nullsoft Scriptable Install System). The installer handles:
-; - Application file deployment from published builds
-; - Scheduled task creation for automatic wallpaper updates
-; - Windows shell integration and startup registration
-; - Proper uninstallation with cleanup
-; ================================================================================================
 
-!define ENABLE_LOGGING
-!define MUI_ABORTWARNING
-!define TEMP1 $R0 ; Temporary variable 1
-!include "MUI.nsh"
+!include "MUI2.nsh"
+!include "FileFunc.nsh"
 !include "LogicLib.nsh"
+!include "nsDialogs.nsh"
+!include "WinMessages.nsh"
+!include "x64.nsh"
 
+!define MUI_ABORTWARNING
 
-; ================================================================================================
-; Build Configuration - SIMPLIFIED FOR PUBLISHED BUILDS
-; ================================================================================================
-; Now uses the published build directory instead of individual bin folders
-; Can be overridden via command line:
-; makensis /DBUILD_CONFIG=Release InstallMaker.nsi
-; ================================================================================================
-
-; Set default values if not provided via command line
 !ifndef BUILD_CONFIG
-  !define BUILD_CONFIG          "Debug"
+  !define BUILD_CONFIG "Debug"
 !endif
 
-; Application identifiers and friendly names
-!define APP_NAME                "WorldMapWallpaper"
-!define FRIEND_NAME             "World Map Wallpaper"
+!ifndef APP_VERSION
+  !define APP_VERSION "2.0.0"
+!endif
 
-; Use the published build directory - this contains all necessary files including dependencies
-!define PUBLISH_BUILD_PATH      ".\bin\publish-64"
+!ifndef INSTALLER_OUTPUT
+  !define INSTALLER_OUTPUT "Install.exe"
+!endif
 
-; Define application executable file names
-!define MAIN_APP_EXE     "${APP_NAME}.exe"
+!define APP_NAME "WorldMapWallpaper"
+!define FRIEND_NAME "World Map Wallpaper"
+!define MAIN_APP_EXE "${APP_NAME}.exe"
 !define SETTINGS_APP_EXE "${APP_NAME}.Settings.exe"
+!define PUBLISH_BUILD_PATH ".\bin\publish-64"
+!define TASK_NAME "World Map Wallpaper"
+!define UNINSTALL_REGKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"
+!define CONTEXT_FILE "install-context.ini"
+!define ALLUSERS_SWITCH "/allusers"
+!define RESUME_SCOPE_SWITCH "/resume-scope"
 
-; Installer configuration
 Name "${FRIEND_NAME}"
-OutFile "Install.exe"
+OutFile "${INSTALLER_OUTPUT}"
+RequestExecutionLevel user
+InstallDir "$LOCALAPPDATA\Programs\${APP_NAME}"
+SetCompressor /SOLID lzma
 
-; ================================================================================================
-; Modern UI Page Configuration
-; ================================================================================================
+Var ScopeCurrentRadio
+Var ScopeAllUsersRadio
+Var ScopeInfoLabel
+Var SelectedScope
+Var ExistingCurrentUserInstall
+Var ExistingCurrentUserPath
+Var ExistingAllUsersInstall
+Var ExistingAllUsersPath
+Var OutputFolderTextBox
+Var OutputFolderValue
+Var OutputFolderBrowseButton
+Var TaskCreationExitCode
+Var InstallContextScope
+Var RemoveUserDataCheckbox
+Var RemoveUserData
+Var SettingsRunning
+Var MainRunning
+Var TaskPresent
+Var ResumeFromScopePage
+Var OutputFolderLoadedFromSettings
+Var SettingsHelperReadScript
+Var SettingsHelperWriteScript
 
-; Installer page order - defines the sequence of pages shown during installation
+!define MUI_PAGE_CUSTOMFUNCTION_PRE PreWelcomePage
 !insertmacro MUI_PAGE_WELCOME
+!ifdef MUI_PAGE_CUSTOMFUNCTION_PRE
+  !undef MUI_PAGE_CUSTOMFUNCTION_PRE
+!endif
+!define MUI_PAGE_CUSTOMFUNCTION_PRE PreLicensePage
 !insertmacro MUI_PAGE_LICENSE "License.txt"
+!ifdef MUI_PAGE_CUSTOMFUNCTION_PRE
+  !undef MUI_PAGE_CUSTOMFUNCTION_PRE
+!endif
+Page custom CreateInstallScopePage LeaveInstallScopePage
 !insertmacro MUI_PAGE_DIRECTORY
+Page custom CreateOutputFolderPage LeaveOutputFolderPage
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
 
-; Reserve the license file for faster installer startup
-ReserveFile "License.txt"
-
-; Uninstaller page order - defines the sequence of pages shown during uninstallation
 !insertmacro MUI_UNPAGE_WELCOME
 !insertmacro MUI_UNPAGE_CONFIRM
+UninstPage custom un.CreateRemoveDataPage un.LeaveRemoveDataPage
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_UNPAGE_FINISH
 
-; Set the installer language
 !insertmacro MUI_LANGUAGE "English"
 
-; ================================================================================================
-; Installer Functions
-; ================================================================================================
+ReserveFile "License.txt"
 
-; ------------------------------------------------------------------------------------------------
-; Function: .onInit
-; Description: Initializes the installer, sets up logging, and configures the default installation directory
-; Called: Automatically when the installer starts
-; ------------------------------------------------------------------------------------------------
 Function .onInit
-    LogSet on
-
-    LogText "Initializing installation..."
+    SetRegView 64
     InitPluginsDir
+    Call CreateSettingsHelperScripts
 
-    ; Set the default installation directory to Program Files
-    StrCpy $INSTDIR "C:\Program Files\${APP_NAME}"
-    LogText "Installation path: '$INSTDIR'"
-    SetOutPath "$INSTDIR"
+    StrCpy $SelectedScope "CurrentUser"
+    StrCpy $OutputFolderValue "$PICTURES"
+    StrCpy $OutputFolderLoadedFromSettings 0
+    StrCpy $RemoveUserData 0
+    StrCpy $ResumeFromScopePage 0
+
+    ${GetParameters} $0
+    ClearErrors
+    ${GetOptions} $0 "${ALLUSERS_SWITCH}" $1
+    ${IfNot} ${Errors}
+        StrCpy $SelectedScope "AllUsers"
+    ${EndIf}
+    ClearErrors
+    ${GetOptions} $0 "${RESUME_SCOPE_SWITCH}" $1
+    ${IfNot} ${Errors}
+        StrCpy $ResumeFromScopePage 1
+    ${EndIf}
+
+    Call DetectExistingInstalls
+
+    ${If} $ExistingAllUsersInstall == 1
+    ${AndIf} $ExistingCurrentUserInstall != 1
+        StrCpy $SelectedScope "AllUsers"
+        StrCpy $INSTDIR $ExistingAllUsersPath
+    ${ElseIf} $ExistingCurrentUserInstall == 1
+        StrCpy $SelectedScope "CurrentUser"
+        StrCpy $INSTDIR $ExistingCurrentUserPath
+    ${Else}
+        Call UpdateInstallDirForScope
+    ${EndIf}
+
+    Call UpdateOutputFolderForScope
 FunctionEnd
 
-; ------------------------------------------------------------------------------------------------
-; Section: Installer Section
-; Description: Main installation section that handles file deployment, registry setup, 
-;              task creation, and initial application launch
-; ------------------------------------------------------------------------------------------------
-Section "Installer Section" SecInstaller
-    LogSet on
+Function un.onInit
+    SetRegView 64
+    StrCpy $RemoveUserData 0
 
-    ; Install all files from the published build directory
-    ; This includes the main app, settings app, shared library, and all dependencies
-    LogText "Installing application files from published build..."
+    Call un.EnsureUninstallPrivileges
+    Call un.ResolveInstallScope
+FunctionEnd
+
+Function PreWelcomePage
+    ${If} $ResumeFromScopePage == 1
+        Abort
+    ${EndIf}
+FunctionEnd
+
+Function PreLicensePage
+    ${If} $ResumeFromScopePage == 1
+        Abort
+    ${EndIf}
+FunctionEnd
+
+Function DetectExistingInstalls
+    StrCpy $ExistingCurrentUserInstall 0
+    StrCpy $ExistingAllUsersInstall 0
+    StrCpy $ExistingCurrentUserPath "$LOCALAPPDATA\Programs\${APP_NAME}"
+    ${If} ${RunningX64}
+        StrCpy $ExistingAllUsersPath "$PROGRAMFILES64\${APP_NAME}"
+    ${Else}
+        StrCpy $ExistingAllUsersPath "$PROGRAMFILES\${APP_NAME}"
+    ${EndIf}
+
+    ReadRegStr $0 HKCU "${UNINSTALL_REGKEY}" "InstallLocation"
+    ${If} $0 != ""
+        StrCpy $ExistingCurrentUserPath $0
+    ${EndIf}
+    ${If} ${FileExists} "$ExistingCurrentUserPath\${MAIN_APP_EXE}"
+        StrCpy $ExistingCurrentUserInstall 1
+    ${EndIf}
+
+    ReadRegStr $1 HKLM "${UNINSTALL_REGKEY}" "InstallLocation"
+    ${If} $1 != ""
+        StrCpy $ExistingAllUsersPath $1
+    ${EndIf}
+    ${If} ${FileExists} "$ExistingAllUsersPath\${MAIN_APP_EXE}"
+        StrCpy $ExistingAllUsersInstall 1
+    ${EndIf}
+FunctionEnd
+
+Function CreateSettingsHelperScripts
+    StrCpy $SettingsHelperReadScript "$PLUGINSDIR\ReadSettingsValue.ps1"
+    StrCpy $SettingsHelperWriteScript "$PLUGINSDIR\WriteSettings.ps1"
+
+    FileOpen $0 $SettingsHelperReadScript w
+    FileWrite $0 'param([string]$$Path, [string]$$Name)$\r$\n'
+    FileWrite $0 'if (-not (Test-Path -LiteralPath $$Path)) { exit 0 }$\r$\n'
+    FileWrite $0 'try {$\r$\n'
+    FileWrite $0 '  $$jsonText = Get-Content -LiteralPath $$Path -Raw$\r$\n'
+    FileWrite $0 '  if ([string]::IsNullOrWhiteSpace($$jsonText)) { exit 0 }$\r$\n'
+    FileWrite $0 '  $$json = $$jsonText | ConvertFrom-Json$\r$\n'
+    FileWrite $0 '  $$value = $$json.$$Name$\r$\n'
+    FileWrite $0 '  if ($$null -ne $$value) { [Console]::Out.Write($$value.ToString()) }$\r$\n'
+    FileWrite $0 '} catch {$\r$\n'
+    FileWrite $0 '  exit 0$\r$\n'
+    FileWrite $0 '}$\r$\n'
+    FileClose $0
+
+    FileOpen $1 $SettingsHelperWriteScript w
+    FileWrite $1 'param([string]$$Path, [string]$$OutputFolder, [string]$$TrayFallback)$\r$\n'
+    FileWrite $1 '$$dir = Split-Path -Parent $$Path$\r$\n'
+    FileWrite $1 'if (-not [string]::IsNullOrWhiteSpace($$dir)) { New-Item -ItemType Directory -Path $$dir -Force | Out-Null }$\r$\n'
+    FileWrite $1 '$$defaults = [ordered]@{$\r$\n'
+    FileWrite $1 '  ShowISS = $$true$\r$\n'
+    FileWrite $1 '  ShowTimeZones = $$true$\r$\n'
+    FileWrite $1 '  ShowPoliticalMap = $$true$\r$\n'
+    FileWrite $1 '  UpdateInterval = "Hourly"$\r$\n'
+    FileWrite $1 '  IsActive = $$true$\r$\n'
+    FileWrite $1 '  ResolutionMode = "None"$\r$\n'
+    FileWrite $1 '  CustomResolutionWidth = 0$\r$\n'
+    FileWrite $1 '  CustomResolutionHeight = 0$\r$\n'
+    FileWrite $1 '  SatelliteTrackingEnabled = $$true$\r$\n'
+    FileWrite $1 '  WallpaperOutputDirectory = $$OutputFolder$\r$\n'
+    FileWrite $1 '  TrayAutoUpdateFallbackEnabled = $$false$\r$\n'
+    FileWrite $1 '}$\r$\n'
+    FileWrite $1 '$$data = $$null$\r$\n'
+    FileWrite $1 'if (Test-Path -LiteralPath $$Path) {$\r$\n'
+    FileWrite $1 '  try {$\r$\n'
+    FileWrite $1 '    $$jsonText = Get-Content -LiteralPath $$Path -Raw$\r$\n'
+    FileWrite $1 '    if (-not [string]::IsNullOrWhiteSpace($$jsonText)) { $$data = $$jsonText | ConvertFrom-Json }$\r$\n'
+    FileWrite $1 '  } catch {$\r$\n'
+    FileWrite $1 '    $$data = $$null$\r$\n'
+    FileWrite $1 '  }$\r$\n'
+    FileWrite $1 '}$\r$\n'
+    FileWrite $1 'if ($$null -eq $$data) { $$data = [pscustomobject]@{} }$\r$\n'
+    FileWrite $1 'foreach ($$entry in $$defaults.GetEnumerator()) {$\r$\n'
+    FileWrite $1 '  if ($$null -eq $$data.PSObject.Properties[$$entry.Key]) {$\r$\n'
+    FileWrite $1 '    Add-Member -InputObject $$data -MemberType NoteProperty -Name $$entry.Key -Value $$entry.Value -Force$\r$\n'
+    FileWrite $1 '  }$\r$\n'
+    FileWrite $1 '}$\r$\n'
+    FileWrite $1 '$$data.WallpaperOutputDirectory = $$OutputFolder$\r$\n'
+    FileWrite $1 '$$data.TrayAutoUpdateFallbackEnabled = [System.Convert]::ToBoolean($$TrayFallback)$\r$\n'
+    FileWrite $1 '$$utf8NoBom = New-Object System.Text.UTF8Encoding($$false)$\r$\n'
+    FileWrite $1 '[System.IO.File]::WriteAllText($$Path, ($$data | ConvertTo-Json -Depth 10), $$utf8NoBom)$\r$\n'
+    FileClose $1
+FunctionEnd
+
+Function GetSettingsDirectoryForScope
+    ${If} $SelectedScope == "AllUsers"
+        ReadEnvStr $0 "ProgramData"
+        ${If} $0 == ""
+            StrCpy $0 "$APPDATA"
+        ${EndIf}
+        StrCpy $0 "$0\${APP_NAME}"
+    ${Else}
+        StrCpy $0 "$APPDATA\${APP_NAME}"
+    ${EndIf}
+FunctionEnd
+
+Function GetSettingsFilePathForScope
+    Call GetSettingsDirectoryForScope
+    StrCpy $0 "$0\settings.json"
+FunctionEnd
+
+Function LoadExistingOutputFolder
+    StrCpy $OutputFolderLoadedFromSettings 0
+    Call GetSettingsFilePathForScope
+
+    ${IfNot} ${FileExists} "$0"
+        Return
+    ${EndIf}
+
+    nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$SettingsHelperReadScript" -Path "$0" -Name "WallpaperOutputDirectory"'
+    Pop $1
+    Pop $2
+
+    ${If} $1 == 0
+    ${AndIf} $2 != ""
+        StrCpy $OutputFolderValue $2
+        StrCpy $OutputFolderLoadedFromSettings 1
+    ${EndIf}
+FunctionEnd
+
+Function UpdateInstallDirForScope
+    ${If} $SelectedScope == "AllUsers"
+        ${If} ${RunningX64}
+            StrCpy $INSTDIR "$PROGRAMFILES64\${APP_NAME}"
+        ${Else}
+            StrCpy $INSTDIR "$PROGRAMFILES\${APP_NAME}"
+        ${EndIf}
+    ${Else}
+        StrCpy $INSTDIR "$LOCALAPPDATA\Programs\${APP_NAME}"
+    ${EndIf}
+FunctionEnd
+
+Function UpdateOutputFolderForScope
+    Call LoadExistingOutputFolder
+
+    ${If} $OutputFolderLoadedFromSettings == 1
+        Return
+    ${EndIf}
+
+    ${If} $SelectedScope == "AllUsers"
+        System::Call 'shell32::SHGetKnownFolderPath(g "{B6EBFB86-6907-413C-9AF7-4FC2ABF07CC5}", i 0, p 0, *p .r0)'
+        ${If} $0 <> 0
+            StrCpy $OutputFolderValue "$PICTURES"
+        ${Else}
+            System::Call '*$0(&w260 .r1)'
+            System::Call 'ole32::CoTaskMemFree(p r0)'
+            StrCpy $OutputFolderValue $1
+        ${EndIf}
+    ${Else}
+        StrCpy $OutputFolderValue "$PICTURES"
+    ${EndIf}
+FunctionEnd
+
+Function CreateInstallScopePage
+    nsDialogs::Create 1018
+    Pop $0
+
+    ${If} $0 == error
+        Abort
+    ${EndIf}
+
+    ${NSD_CreateLabel} 0 0 100% 24u "Choose how you want to install ${FRIEND_NAME}."
+    Pop $0
+
+    ${NSD_CreateRadioButton} 0 34u 100% 12u "&Just for me"
+    Pop $ScopeCurrentRadio
+
+    ${NSD_CreateLabel} 18u 48u 90% 18u "Install to %LocalAppData%\Programs and use per-user startup/integration."
+    Pop $0
+
+    ${NSD_CreateRadioButton} 0 78u 100% 12u "F&or anyone"
+    Pop $ScopeAllUsersRadio
+
+    ${NSD_CreateLabel} 18u 92u 90% 24u "Install to Program Files and use machine-wide integration. This may require elevation."
+    Pop $0
+
+    ${NSD_CreateLabel} 0 128u 100% 36u ""
+    Pop $ScopeInfoLabel
+
+    ${If} $SelectedScope == "AllUsers"
+        ${NSD_Check} $ScopeAllUsersRadio
+        ${NSD_SetText} $ScopeInfoLabel "An existing machine-wide installation was detected. Upgrades should stay in the same scope."
+    ${Else}
+        ${NSD_Check} $ScopeCurrentRadio
+        ${NSD_SetText} $ScopeInfoLabel "Per-user install is recommended when you do not need machine-wide setup."
+    ${EndIf}
+
+    nsDialogs::Show
+FunctionEnd
+
+Function LeaveInstallScopePage
+    ${NSD_GetState} $ScopeAllUsersRadio $0
+    ${If} $0 == ${BST_CHECKED}
+        StrCpy $SelectedScope "AllUsers"
+    ${Else}
+        StrCpy $SelectedScope "CurrentUser"
+    ${EndIf}
+
+    ${If} $ExistingCurrentUserInstall == 1
+    ${AndIf} $ExistingAllUsersInstall == 1
+        MessageBox MB_ICONSTOP|MB_OK "Both a per-user and a machine-wide installation were detected. Remove one copy before continuing."
+        Abort
+    ${EndIf}
+
+    ${If} $SelectedScope == "AllUsers"
+        ${If} $ExistingCurrentUserInstall == 1
+        ${AndIf} $ExistingAllUsersInstall != 1
+            MessageBox MB_ICONSTOP|MB_OK "A 'Just for me' installation already exists at:$\r$\n$\r$\n$ExistingCurrentUserPath$\r$\n$\r$\nUpgrade in that same scope or uninstall it first."
+            Abort
+        ${EndIf}
+
+        UserInfo::GetAccountType
+        Pop $0
+        ${If} $0 != "Admin"
+            MessageBox MB_ICONINFORMATION|MB_OK "Installing for anyone requires administrator rights. The installer will now restart elevated."
+            ExecShell "runas" "$EXEPATH" "${ALLUSERS_SWITCH} ${RESUME_SCOPE_SWITCH}"
+            Quit
+        ${EndIf}
+
+        ${If} $ExistingAllUsersInstall == 1
+            StrCpy $INSTDIR $ExistingAllUsersPath
+        ${Else}
+            Call UpdateInstallDirForScope
+        ${EndIf}
+    ${Else}
+        ${If} $ExistingAllUsersInstall == 1
+        ${AndIf} $ExistingCurrentUserInstall != 1
+            MessageBox MB_ICONSTOP|MB_OK "A 'For anyone' installation already exists at:$\r$\n$\r$\n$ExistingAllUsersPath$\r$\n$\r$\nUpgrade in that same scope or uninstall it first."
+            Abort
+        ${EndIf}
+
+        ${If} $ExistingCurrentUserInstall == 1
+            StrCpy $INSTDIR $ExistingCurrentUserPath
+        ${Else}
+            Call UpdateInstallDirForScope
+        ${EndIf}
+    ${EndIf}
+
+    Call UpdateOutputFolderForScope
+FunctionEnd
+
+Function CreateOutputFolderPage
+    nsDialogs::Create 1018
+    Pop $0
+
+    ${If} $0 == error
+        Abort
+    ${EndIf}
+
+    ${NSD_CreateLabel} 0 0 100% 28u "Choose where generated wallpaper images should be saved. This can be changed later in Settings."
+    Pop $0
+
+    ${NSD_CreateText} 0 42u 78% 12u "$OutputFolderValue"
+    Pop $OutputFolderTextBox
+
+    ${NSD_CreateButton} 82% 40u 18% 14u "Browse..."
+    Pop $OutputFolderBrowseButton
+    ${NSD_OnClick} $OutputFolderBrowseButton BrowseForOutputFolder
+
+    nsDialogs::Show
+FunctionEnd
+
+Function LeaveOutputFolderPage
+    ${NSD_GetText} $OutputFolderTextBox $OutputFolderValue
+
+    ${If} $OutputFolderValue == ""
+        MessageBox MB_ICONSTOP|MB_OK "Choose a folder for generated wallpaper images before continuing."
+        Abort
+    ${EndIf}
+FunctionEnd
+
+Function BrowseForOutputFolder
+    nsDialogs::SelectFolderDialog "Choose wallpaper output folder" "$OutputFolderValue"
+    Pop $0
+    ${If} $0 != error
+        StrCpy $OutputFolderValue $0
+        ${NSD_SetText} $OutputFolderTextBox $OutputFolderValue
+    ${EndIf}
+FunctionEnd
+
+Function DetectRunningState
+    StrCpy $SettingsRunning 0
+    StrCpy $MainRunning 0
+    StrCpy $TaskPresent 0
+
+    nsExec::Exec 'cmd /c tasklist /FI "IMAGENAME eq ${SETTINGS_APP_EXE}" | find /I "${SETTINGS_APP_EXE}" >nul'
+    Pop $0
+    ${If} $0 == 0
+        StrCpy $SettingsRunning 1
+    ${EndIf}
+
+    nsExec::Exec 'cmd /c tasklist /FI "IMAGENAME eq ${MAIN_APP_EXE}" | find /I "${MAIN_APP_EXE}" >nul'
+    Pop $0
+    ${If} $0 == 0
+        StrCpy $MainRunning 1
+    ${EndIf}
+
+    nsExec::Exec 'cmd /c schtasks /query /tn "${TASK_NAME}" >nul 2>nul'
+    Pop $0
+    ${If} $0 == 0
+        StrCpy $TaskPresent 1
+    ${EndIf}
+FunctionEnd
+
+Function EnsureRunningAppsClosed
+    Call DetectRunningState
+
+    ${If} $SettingsRunning == 1
+    ${OrIf} $MainRunning == 1
+    ${OrIf} $TaskPresent == 1
+        MessageBox MB_ICONQUESTION|MB_YESNO "A running copy of ${FRIEND_NAME} was detected. The installer needs to stop the app and its scheduled task before continuing with the upgrade.$\r$\n$\r$\nContinue?" IDYES +2
+        Abort
+
+        Call DisableScheduledTask
+        Call StopRunningProcesses
+        Call DetectRunningState
+
+        ${If} $SettingsRunning == 1
+        ${OrIf} $MainRunning == 1
+            MessageBox MB_ICONSTOP|MB_OK "The installer could not stop the running application. Close ${FRIEND_NAME} and try again."
+            Abort
+        ${EndIf}
+    ${EndIf}
+FunctionEnd
+
+Function StopRunningProcesses
+    nsExec::Exec 'cmd /c taskkill /IM "${SETTINGS_APP_EXE}" /T /F >nul 2>nul'
+    Pop $0
+    nsExec::Exec 'cmd /c taskkill /IM "${MAIN_APP_EXE}" /T /F >nul 2>nul'
+    Pop $0
+FunctionEnd
+
+Function DisableScheduledTask
+    nsExec::Exec 'cmd /c schtasks /change /tn "${TASK_NAME}" /disable >nul 2>nul'
+    Pop $0
+    nsExec::Exec 'cmd /c schtasks /end /tn "${TASK_NAME}" >nul 2>nul'
+    Pop $0
+FunctionEnd
+
+Function un.StopRunningProcesses
+    nsExec::Exec 'cmd /c taskkill /IM "${SETTINGS_APP_EXE}" /T /F >nul 2>nul'
+    Pop $0
+    nsExec::Exec 'cmd /c taskkill /IM "${MAIN_APP_EXE}" /T /F >nul 2>nul'
+    Pop $0
+FunctionEnd
+
+Function un.DisableScheduledTask
+    nsExec::Exec 'cmd /c schtasks /change /tn "${TASK_NAME}" /disable >nul 2>nul'
+    Pop $0
+    nsExec::Exec 'cmd /c schtasks /end /tn "${TASK_NAME}" >nul 2>nul'
+    Pop $0
+FunctionEnd
+
+Function un.DeleteScheduledTask
+    nsExec::Exec 'cmd /c schtasks /delete /tn "${TASK_NAME}" /f >nul 2>nul'
+    Pop $0
+FunctionEnd
+
+Function un.EnsureUninstallPrivileges
+    ReadRegStr $0 HKLM "${UNINSTALL_REGKEY}" "InstallLocation"
+    ${If} $0 == $INSTDIR
+        UserInfo::GetAccountType
+        Pop $1
+        ${If} $1 != "Admin"
+            MessageBox MB_ICONINFORMATION|MB_OK "Uninstalling the machine-wide installation requires administrator rights. The uninstaller will now restart elevated."
+            ExecShell "runas" "$INSTDIR\Uninstall.exe"
+            Quit
+        ${EndIf}
+    ${EndIf}
+FunctionEnd
+
+Function CreateSchedulerTask
+    StrCpy $TaskCreationExitCode 1
+    StrCpy $0 "$PLUGINSDIR\${APP_NAME}Task.xml"
+
+    ClearErrors
+    UserInfo::GetName
+    Pop $1
+
+    FileOpen $2 $0 w
+    FileWrite $2 '<?xml version="1.0" encoding="UTF-16"?>$\r$\n'
+    FileWrite $2 '<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">$\r$\n'
+    FileWrite $2 '  <RegistrationInfo>$\r$\n'
+    FileWrite $2 '    <Date>2020-01-01T00:00:00</Date>$\r$\n'
+    FileWrite $2 '    <Author>${FRIEND_NAME}</Author>$\r$\n'
+    FileWrite $2 '  </RegistrationInfo>$\r$\n'
+    FileWrite $2 '  <Triggers>$\r$\n'
+    FileWrite $2 '    <BootTrigger>$\r$\n'
+    FileWrite $2 '      <Enabled>true</Enabled>$\r$\n'
+    FileWrite $2 '    </BootTrigger>$\r$\n'
+    FileWrite $2 '    <LogonTrigger>$\r$\n'
+    FileWrite $2 '      <Enabled>true</Enabled>$\r$\n'
+    FileWrite $2 '    </LogonTrigger>$\r$\n'
+    FileWrite $2 '    <EventTrigger>$\r$\n'
+    FileWrite $2 '      <Enabled>true</Enabled>$\r$\n'
+    FileWrite $2 '      <Subscription>&lt;QueryList&gt;&lt;Query Id="0" Path="System"&gt;&lt;Select Path="System"&gt;*[System[Provider[@Name=$\'Microsoft-Windows-Power-Troubleshooter$\'] and EventID=1]]&lt;/Select&gt;&lt;/Query&gt;&lt;/QueryList&gt;</Subscription>$\r$\n'
+    FileWrite $2 '    </EventTrigger>$\r$\n'
+    FileWrite $2 '    <TimeTrigger>$\r$\n'
+    FileWrite $2 '      <Repetition>$\r$\n'
+    FileWrite $2 '        <Interval>PT1H</Interval>$\r$\n'
+    FileWrite $2 '        <StopAtDurationEnd>false</StopAtDurationEnd>$\r$\n'
+    FileWrite $2 '      </Repetition>$\r$\n'
+    FileWrite $2 '      <StartBoundary>2020-01-01T00:00:00</StartBoundary>$\r$\n'
+    FileWrite $2 '      <Enabled>true</Enabled>$\r$\n'
+    FileWrite $2 '    </TimeTrigger>$\r$\n'
+    FileWrite $2 '  </Triggers>$\r$\n'
+    FileWrite $2 '  <Principals>$\r$\n'
+    FileWrite $2 '    <Principal id="Author">$\r$\n'
+    FileWrite $2 '      <UserId>$1</UserId>$\r$\n'
+    FileWrite $2 '      <LogonType>InteractiveToken</LogonType>$\r$\n'
+    FileWrite $2 '      <RunLevel>HighestAvailable</RunLevel>$\r$\n'
+    FileWrite $2 '    </Principal>$\r$\n'
+    FileWrite $2 '  </Principals>$\r$\n'
+    FileWrite $2 '  <Settings>$\r$\n'
+    FileWrite $2 '    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>$\r$\n'
+    FileWrite $2 '    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>$\r$\n'
+    FileWrite $2 '    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>$\r$\n'
+    FileWrite $2 '    <AllowHardTerminate>true</AllowHardTerminate>$\r$\n'
+    FileWrite $2 '    <StartWhenAvailable>true</StartWhenAvailable>$\r$\n'
+    FileWrite $2 '    <AllowStartOnDemand>true</AllowStartOnDemand>$\r$\n'
+    FileWrite $2 '    <Enabled>true</Enabled>$\r$\n'
+    FileWrite $2 '    <Hidden>false</Hidden>$\r$\n'
+    FileWrite $2 '    <ExecutionTimeLimit>PT72H</ExecutionTimeLimit>$\r$\n'
+    FileWrite $2 '    <Priority>7</Priority>$\r$\n'
+    FileWrite $2 '  </Settings>$\r$\n'
+    FileWrite $2 '  <Actions Context="Author">$\r$\n'
+    FileWrite $2 '    <Exec>$\r$\n'
+    FileWrite $2 '      <Command>$INSTDIR\${MAIN_APP_EXE}</Command>$\r$\n'
+    FileWrite $2 '    </Exec>$\r$\n'
+    FileWrite $2 '  </Actions>$\r$\n'
+    FileWrite $2 '</Task>$\r$\n'
+    FileClose $2
+
+    nsExec::Exec 'cmd /c schtasks /create /tn "${TASK_NAME}" /xml "$PLUGINSDIR\${APP_NAME}Task.xml" /f >nul 2>nul'
+    Pop $TaskCreationExitCode
+FunctionEnd
+
+Function WriteInstallerSettings
+    Call GetSettingsFilePathForScope
+    ${If} $TaskCreationExitCode == 0
+        StrCpy $1 "False"
+    ${Else}
+        StrCpy $1 "True"
+    ${EndIf}
+
+    nsExec::Exec '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$SettingsHelperWriteScript" -Path "$0" -OutputFolder "$OutputFolderValue" -TrayFallback "$1"'
+    Pop $2
+FunctionEnd
+
+Function RegisterIntegration
+    ${If} $SelectedScope == "AllUsers"
+        WriteRegStr HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\${MAIN_APP_EXE}" "" "$INSTDIR\${MAIN_APP_EXE}"
+        WriteRegStr HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\${MAIN_APP_EXE}" "Path" "$INSTDIR"
+        WriteRegStr HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\${SETTINGS_APP_EXE}" "" "$INSTDIR\${SETTINGS_APP_EXE}"
+        WriteRegStr HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\${SETTINGS_APP_EXE}" "Path" "$INSTDIR"
+        WriteRegStr HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Run" "WorldMapWallpaperSettings" '"$INSTDIR\${SETTINGS_APP_EXE}" --minimized'
+        WriteRegStr HKLM "${UNINSTALL_REGKEY}" "DisplayName" "${FRIEND_NAME}"
+        WriteRegStr HKLM "${UNINSTALL_REGKEY}" "DisplayVersion" "${APP_VERSION}"
+        WriteRegStr HKLM "${UNINSTALL_REGKEY}" "Publisher" "Paul St Smith"
+        WriteRegStr HKLM "${UNINSTALL_REGKEY}" "InstallLocation" "$INSTDIR"
+        WriteRegStr HKLM "${UNINSTALL_REGKEY}" "UninstallString" '"$INSTDIR\Uninstall.exe"'
+        WriteRegStr HKLM "${UNINSTALL_REGKEY}" "QuietUninstallString" '"$INSTDIR\Uninstall.exe" /S'
+        WriteRegDWORD HKLM "${UNINSTALL_REGKEY}" "NoModify" 1
+        WriteRegDWORD HKLM "${UNINSTALL_REGKEY}" "NoRepair" 1
+        WriteRegStr HKLM "${UNINSTALL_REGKEY}" "InstallScope" "AllUsers"
+    ${Else}
+        WriteRegStr HKCU "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\${MAIN_APP_EXE}" "" "$INSTDIR\${MAIN_APP_EXE}"
+        WriteRegStr HKCU "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\${MAIN_APP_EXE}" "Path" "$INSTDIR"
+        WriteRegStr HKCU "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\${SETTINGS_APP_EXE}" "" "$INSTDIR\${SETTINGS_APP_EXE}"
+        WriteRegStr HKCU "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\${SETTINGS_APP_EXE}" "Path" "$INSTDIR"
+        WriteRegStr HKCU "SOFTWARE\Microsoft\Windows\CurrentVersion\Run" "WorldMapWallpaperSettings" '"$INSTDIR\${SETTINGS_APP_EXE}" --minimized'
+        WriteRegStr HKCU "${UNINSTALL_REGKEY}" "DisplayName" "${FRIEND_NAME}"
+        WriteRegStr HKCU "${UNINSTALL_REGKEY}" "DisplayVersion" "${APP_VERSION}"
+        WriteRegStr HKCU "${UNINSTALL_REGKEY}" "Publisher" "Paul St Smith"
+        WriteRegStr HKCU "${UNINSTALL_REGKEY}" "InstallLocation" "$INSTDIR"
+        WriteRegStr HKCU "${UNINSTALL_REGKEY}" "UninstallString" '"$INSTDIR\Uninstall.exe"'
+        WriteRegStr HKCU "${UNINSTALL_REGKEY}" "QuietUninstallString" '"$INSTDIR\Uninstall.exe" /S'
+        WriteRegDWORD HKCU "${UNINSTALL_REGKEY}" "NoModify" 1
+        WriteRegDWORD HKCU "${UNINSTALL_REGKEY}" "NoRepair" 1
+        WriteRegStr HKCU "${UNINSTALL_REGKEY}" "InstallScope" "CurrentUser"
+    ${EndIf}
+FunctionEnd
+
+Function WriteInstallContext
+    WriteINIStr "$INSTDIR\${CONTEXT_FILE}" "Install" "Scope" "$SelectedScope"
+    WriteINIStr "$INSTDIR\${CONTEXT_FILE}" "Install" "OutputFolder" "$OutputFolderValue"
+FunctionEnd
+
+Section "Install" SecInstall
+    Call EnsureRunningAppsClosed
+
+    SetOutPath "$INSTDIR"
     File /a /r "${PUBLISH_BUILD_PATH}\*.*"
     File "License.txt"
 
-
-    ; Create the Windows scheduled task for automatic wallpaper updates
-    Call CreateSchedulerTask
-    
-    ; Register wallpaper provider for Windows Personalization integration
-    Call RegisterWallpaperProvider
-
-    ; Create a log directory with proper permissions for application logging
-    LogText "Creating log directory..."
-    CreateDirectory "$INSTDIR\log"
-    
-    ; Set permissions on the log directory to allow user access
-    LogText "Setting permissions on the log directory..."
-    nsExec::ExecToLog 'icacls "$INSTDIR\log" /grant "Users":(OI)(CI)F'
-
-    ; Create the uninstaller executable
-    LogText "Creating uninstaller..."
     WriteUninstaller "$INSTDIR\Uninstall.exe"
+    Call WriteInstallContext
 
-    ; Run the main program to generate the initial wallpaper
-    LogText "Running the program to generate initial wallpaper..."
+    Call CreateSchedulerTask
+    Call WriteInstallerSettings
+    Call RegisterIntegration
+
     ExecWait '"$INSTDIR\${MAIN_APP_EXE}"'
-    LogText "Program executed."
-    
-    ; Launch the settings interface for user configuration
-    LogText "Launching settings interface..."
-    Exec '"$INSTDIR\${SETTINGS_APP_EXE}"'
-    LogText "Settings interface launched."
-
-    LogText "Installation complete."
+    Exec '"$INSTDIR\${SETTINGS_APP_EXE}" --minimized'
 SectionEnd
 
+Function un.ResolveInstallScope
+    StrCpy $InstallContextScope "CurrentUser"
+    ReadINIStr $0 "$INSTDIR\${CONTEXT_FILE}" "Install" "Scope"
+    ${If} $0 != ""
+        StrCpy $InstallContextScope $0
+        Return
+    ${EndIf}
 
-; ------------------------------------------------------------------------------------------------
-; Function: CreateSchedulerTask
-; Description: Creates a Windows scheduled task that automatically runs the wallpaper application
-;              on multiple triggers: boot, logon, system wake, and hourly intervals
-; Task Features: 
-;   - Runs with highest available privileges
-;   - Multiple instance policy set to ignore new instances
-;   - Designed to work on battery power
-;   - 72-hour execution time limit
-; ------------------------------------------------------------------------------------------------
-Function CreateSchedulerTask
-    
-    LogText "Creating XML file for the scheduler task..."
+    ReadRegStr $1 HKLM "${UNINSTALL_REGKEY}" "InstallLocation"
+    ${If} $1 == $INSTDIR
+        StrCpy $InstallContextScope "AllUsers"
+        Return
+    ${EndIf}
 
-    ; Create XML file for the scheduler task configuration
-    StrCpy $0 "$INSTDIR\${APP_NAME}Task.xml"
-    FileOpen $1 $0 w
-
-    ; Get the current user name for the task principal
-	ClearErrors
-	UserInfo::GetName
-	Pop $0
-
-    ; Write the complete task XML definition
-    ; This XML defines a comprehensive scheduled task with multiple triggers
-    FileWrite $1 '<?xml version="1.0" encoding="UTF-16"?>$\r$\n'
-    FileWrite $1 '<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">$\r$\n'
-    FileWrite $1 '  <RegistrationInfo>$\r$\n'
-    FileWrite $1 '    <Date>2020-01-01T00:00:00</Date>$\r$\n'
-    FileWrite $1 '    <Author>World Map Wallpaper</Author>$\r$\n'
-    FileWrite $1 '  </RegistrationInfo>$\r$\n'
-    FileWrite $1 '  <Triggers>$\r$\n'
-    ; Boot trigger - runs when system starts
-    FileWrite $1 '    <BootTrigger>$\r$\n'
-    FileWrite $1 '      <Enabled>true</Enabled>$\r$\n'
-    FileWrite $1 '    </BootTrigger>$\r$\n'
-    ; Logon trigger - runs when user logs in
-    FileWrite $1 '    <LogonTrigger>$\r$\n'
-    FileWrite $1 '      <Enabled>true</Enabled>$\r$\n'
-    FileWrite $1 '    </LogonTrigger>$\r$\n'
-    ; Event trigger - runs when system wakes from sleep (Power Troubleshooter event)
-    FileWrite $1 '    <EventTrigger>$\r$\n'
-    FileWrite $1 '      <Enabled>true</Enabled>$\r$\n'
-    FileWrite $1 '      <Subscription>&lt;QueryList&gt;&lt;Query Id="0" Path="System"&gt;&lt;Select Path="System"&gt;*[System[Provider[@Name=$\'Microsoft-Windows-Power-Troubleshooter$\'] and EventID=1]]&lt;/Select&gt;&lt;/Query&gt;&lt;/QueryList&gt;</Subscription>$\r$\n'
-    FileWrite $1 '    </EventTrigger>$\r$\n'
-    ; Time trigger - runs every hour to keep wallpaper updated
-    FileWrite $1 '    <TimeTrigger>$\r$\n'
-    FileWrite $1 '      <Repetition>$\r$\n'
-    FileWrite $1 '        <Interval>PT1H</Interval>$\r$\n'
-    FileWrite $1 '        <StopAtDurationEnd>false</StopAtDurationEnd>$\r$\n'
-    FileWrite $1 '      </Repetition>$\r$\n'
-    FileWrite $1 '      <StartBoundary>2020-01-01T00:00:00</StartBoundary>$\r$\n'
-    FileWrite $1 '      <Enabled>true</Enabled>$\r$\n'
-    FileWrite $1 '    </TimeTrigger>$\r$\n'
-    FileWrite $1 '  </Triggers>$\r$\n'
-    ; Principal configuration - runs under current user with highest available privileges
-    FileWrite $1 '  <Principals>$\r$\n'
-    FileWrite $1 '    <Principal id="Author">$\r$\n'
-    FileWrite $1 '      <UserId>$0</UserId>$\r$\n'
-    FileWrite $1 '      <LogonType>InteractiveToken</LogonType>$\r$\n'
-    FileWrite $1 '      <RunLevel>HighestAvailable</RunLevel>$\r$\n'
-    FileWrite $1 '    </Principal>$\r$\n'
-    FileWrite $1 '  </Principals>$\r$\n'
-    ; Task settings - optimized for background operation
-    FileWrite $1 '  <Settings>$\r$\n'
-    FileWrite $1 '    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>$\r$\n'
-    FileWrite $1 '    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>$\r$\n'
-    FileWrite $1 '    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>$\r$\n'
-    FileWrite $1 '    <AllowHardTerminate>true</AllowHardTerminate>$\r$\n'
-    FileWrite $1 '    <StartWhenAvailable>true</StartWhenAvailable>$\r$\n'
-    FileWrite $1 '    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>$\r$\n'
-    FileWrite $1 '    <IdleSettings>$\r$\n'
-    FileWrite $1 '      <StopOnIdleEnd>false</StopOnIdleEnd>$\r$\n'
-    FileWrite $1 '      <RestartOnIdle>false</RestartOnIdle>$\r$\n'
-    FileWrite $1 '    </IdleSettings>$\r$\n'
-    FileWrite $1 '    <AllowStartOnDemand>true</AllowStartOnDemand>$\r$\n'
-    FileWrite $1 '    <Enabled>true</Enabled>$\r$\n'
-    FileWrite $1 '    <Hidden>false</Hidden>$\r$\n'
-    FileWrite $1 '    <RunOnlyIfIdle>false</RunOnlyIfIdle>$\r$\n'
-    FileWrite $1 '    <WakeToRun>false</WakeToRun>$\r$\n'
-    FileWrite $1 '    <ExecutionTimeLimit>PT72H</ExecutionTimeLimit>$\r$\n'
-    FileWrite $1 '    <Priority>7</Priority>$\r$\n'
-    FileWrite $1 '  </Settings>$\r$\n'
-    ; Action configuration - specifies the executable to run
-    FileWrite $1 '  <Actions Context="Author">$\r$\n'
-    FileWrite $1 '    <Exec>$\r$\n'
-    FileWrite $1 '      <Command>"$INSTDIR\${MAIN_APP_EXE}"</Command>$\r$\n'
-    FileWrite $1 '    </Exec>$\r$\n'
-    FileWrite $1 '  </Actions>$\r$\n'
-    FileWrite $1 '</Task>$\r$\n'
-    FileClose $1
-    LogText "XML file created: $0"
-
-    ; Create the scheduled task using the XML file
-    LogText "Creating scheduler task to run the program..."
-    StrCpy $0 '"schtasks" /create /tn "${FRIEND_NAME}" /xml "$INSTDIR\${APP_NAME}Task.xml" /f'
-    LogText "Command: $0"
-    nsExec::Exec "$0"
-    pop $0
-    LogText "Exit Code: $0"
-
+    ReadRegStr $1 HKCU "${UNINSTALL_REGKEY}" "InstallLocation"
+    ${If} $1 == $INSTDIR
+        StrCpy $InstallContextScope "CurrentUser"
+    ${EndIf}
 FunctionEnd
 
-; ------------------------------------------------------------------------------------------------
-; Function: RegisterWallpaperProvider
-; Description: Registers the application with Windows shell integration and startup services
-; Registry Operations:
-;   - Registers application paths for shell integration
-;   - Sets up automatic startup of settings app (minimized to tray)
-; Purpose: Enables seamless Windows integration and automatic startup
-; ------------------------------------------------------------------------------------------------
-Function RegisterWallpaperProvider
-    LogText "Registering World Map Wallpaper integration..."
-    
-    ; Register application paths for Windows shell integration
-    ; This allows Windows to find the executables when referenced by name
-    LogText "Registering application paths..."
-    WriteRegStr HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\${MAIN_APP_EXE}" "" "$INSTDIR\${MAIN_APP_EXE}"
-    WriteRegStr HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\${MAIN_APP_EXE}" "Path" "$INSTDIR"
-    WriteRegStr HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\${SETTINGS_APP_EXE}" "" "$INSTDIR\${SETTINGS_APP_EXE}"
-    WriteRegStr HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\${SETTINGS_APP_EXE}" "Path" "$INSTDIR"
-    
-    ; Register Settings app to start with Windows (minimized to tray)
-    ; This ensures the tray icon and settings are always available to the user
-    LogText "Registering Settings app for startup..."
-    WriteRegStr HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Run" "WorldMapWallpaperSettings" '"$INSTDIR\${SETTINGS_APP_EXE}" --minimized'
-    
-    LogText "World Map Wallpaper integration complete."
+Function un.CreateRemoveDataPage
+    nsDialogs::Create 1018
+    Pop $0
+
+    ${If} $0 == error
+        Abort
+    ${EndIf}
+
+    ${NSD_CreateLabel} 0 0 100% 24u "Choose whether user settings and app data should be removed."
+    Pop $0
+
+    ${NSD_CreateCheckbox} 0 36u 100% 12u "Remove user settings and app data (settings.json, satellites, and cache files)"
+    Pop $RemoveUserDataCheckbox
+
+    nsDialogs::Show
 FunctionEnd
 
-; ================================================================================================
-; Uninstaller Functions
-; ================================================================================================
+Function un.LeaveRemoveDataPage
+    ${NSD_GetState} $RemoveUserDataCheckbox $0
+    ${If} $0 == ${BST_CHECKED}
+        StrCpy $RemoveUserData 1
+    ${Else}
+        StrCpy $RemoveUserData 0
+    ${EndIf}
+FunctionEnd
 
-; ------------------------------------------------------------------------------------------------
-; Section: Uninstall
-; Description: Complete uninstallation section that removes all application components
-; Cleanup Operations:
-;   - Removes all installed files and directories
-;   - Deletes scheduled tasks
-;   - Cleans up all registry entries
-; ------------------------------------------------------------------------------------------------
-Section "Uninstall" SecUninstaller
-    LogSet on
+Section "Uninstall" SecUninstall
+    Call un.DisableScheduledTask
+    Call un.DeleteScheduledTask
+    Call un.StopRunningProcesses
 
-    LogText "Uninstalling ${APP_NAME}..."
-    LogText "Installation directory: $INSTDIR"
+    ${If} $InstallContextScope == "AllUsers"
+        DeleteRegKey HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\${MAIN_APP_EXE}"
+        DeleteRegKey HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\${SETTINGS_APP_EXE}"
+        DeleteRegValue HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Run" "WorldMapWallpaperSettings"
+        DeleteRegKey HKLM "${UNINSTALL_REGKEY}"
+    ${Else}
+        DeleteRegKey HKCU "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\${MAIN_APP_EXE}"
+        DeleteRegKey HKCU "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\${SETTINGS_APP_EXE}"
+        DeleteRegValue HKCU "SOFTWARE\Microsoft\Windows\CurrentVersion\Run" "WorldMapWallpaperSettings"
+        DeleteRegKey HKCU "${UNINSTALL_REGKEY}"
+    ${EndIf}
 
-    ; Remove the entire installation directory and all its contents
-    LogText "Removing installation directory..."
-    RMDir /r "$INSTDIR"
+    ${If} $RemoveUserData == 1
+        ${If} $InstallContextScope == "AllUsers"
+            ReadEnvStr $0 "ProgramData"
+            ${If} $0 == ""
+                StrCpy $0 "$APPDATA"
+            ${EndIf}
+            RMDir /r "$0\${APP_NAME}"
+        ${Else}
+            RMDir /r "$APPDATA\${APP_NAME}"
+        ${EndIf}
+    ${EndIf}
 
-    ; Remove the scheduled task that was created during installation
-    LogText "Removing scheduler task to run the program every hour on the hour..."
-    StrCpy $0 '"schtasks" /delete /tn "${FRIEND_NAME}" /f'
-    LogText "Command: $0"
-    nsExec::Exec "$0"
-    pop $0
-    LogText "Exit Code: $0"
-
-    
-    ; Remove all registry entries created during installation
-    LogText "Removing registry entries..."
-    DeleteRegKey HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\${MAIN_APP_EXE}"
-    DeleteRegKey HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\${SETTINGS_APP_EXE}"
-    DeleteRegValue HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Run" "WorldMapWallpaperSettings"
-
+    ${If} ${FileExists} "$INSTDIR\${CONTEXT_FILE}"
+        RMDir /r "$INSTDIR"
+    ${Else}
+        Delete "$INSTDIR\Uninstall.exe"
+        RMDir "$INSTDIR"
+    ${EndIf}
 SectionEnd
-
-; ================================================================================================
-; Installation Event Handlers
-; ================================================================================================
-
-; ------------------------------------------------------------------------------------------------
-; Function: .onInstSuccess
-; Description: Called automatically when installation completes successfully
-; Purpose: Logs successful installation for troubleshooting and audit purposes
-; ------------------------------------------------------------------------------------------------
-Function .onInstSuccess
-    LogSet on
-    LogText "Installation successful."
-FunctionEnd
-
-; ------------------------------------------------------------------------------------------------
-; Function: .onInstFailed  
-; Description: Called automatically when installation fails
-; Purpose: Logs installation failure for troubleshooting purposes
-; ------------------------------------------------------------------------------------------------
-Function .onInstFailed
-    LogSet on
-    LogText "Installation failed."
-FunctionEnd

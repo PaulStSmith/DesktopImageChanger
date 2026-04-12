@@ -8,11 +8,9 @@ namespace WorldMapWallpaper.Shared.Services;
 /// </summary>
 public class SatelliteConfigManager
 {
-    private static readonly string ConfigDirectory =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "WorldMapWallpaper");
+    private static string ConfigDirectory => AppStoragePaths.EnsureDataDirectoryExists();
 
-    private static readonly string ConfigFilePath =
-        Path.Combine(ConfigDirectory, "satellites.json");
+    private static string ConfigFilePath => AppStoragePaths.GetDataFilePath("satellites.json");
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -365,9 +363,6 @@ public class SatelliteConfigManager
 
     private static void EnsureDirectoryExists()
     {
-        if (!Directory.Exists(ConfigDirectory))
-        {
-            Directory.CreateDirectory(ConfigDirectory);
-        }
+        Directory.CreateDirectory(ConfigDirectory);
     }
 }

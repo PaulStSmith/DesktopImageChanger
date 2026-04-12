@@ -25,11 +25,8 @@ namespace WorldMapWallpaper.Shared
         private const int ISS_NAUKA_CATALOG = 49044;
 
         // Cache settings
-        private static readonly string CacheDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "WorldMapWallpaper"
-        );
-        private static readonly string TleCacheFile = Path.Combine(CacheDirectory, "iss_tle_cache.json");
+        private static string CacheDirectory => AppStoragePaths.EnsureDataDirectoryExists();
+        private static string TleCacheFile => AppStoragePaths.GetDataFilePath("iss_tle_cache.json");
 
         private readonly Action<string>? _logAction;
 
