@@ -469,14 +469,19 @@ public partial class SettingsForm : Form
             Shared.Settings.CustomResolutionHeight = Math.Max(0, height);
         }
 
-        Shared.Settings.WallpaperOutputDirectory = string.IsNullOrWhiteSpace(_outputFolderTextBox.Text)
-            ? Environment.GetFolderPath(Environment.SpecialFolder.MyPictures)
-            : _outputFolderTextBox.Text.Trim();
+        SaveOutputFolderSetting();
 
         _taskStatusLabel.Text = GetTaskStatusText();
         _detectedResolutionLabel.Text = GetDetectedResolutionText();
         ApplyThemeToLabel(_taskStatusLabel);
         ApplyThemeToLabel(_detectedResolutionLabel);
+    }
+
+    private void SaveOutputFolderSetting()
+    {
+        Shared.Settings.WallpaperOutputDirectory = string.IsNullOrWhiteSpace(_outputFolderTextBox.Text)
+            ? Environment.GetFolderPath(Environment.SpecialFolder.MyPictures)
+            : _outputFolderTextBox.Text.Trim();
     }
 
     // Event handlers
@@ -492,7 +497,7 @@ public partial class SettingsForm : Form
 
     private void OnCustomResolutionChanged(object? sender, EventArgs e) => SaveSettings();
 
-    private void OnOutputFolderChanged(object? sender, EventArgs e) => SaveSettings();
+    private void OnOutputFolderChanged(object? sender, EventArgs e) => SaveOutputFolderSetting();
 
     private void UpdateCustomResolutionState()
     {
@@ -535,6 +540,7 @@ public partial class SettingsForm : Form
         if (dialog.ShowDialog(this) == DialogResult.OK)
         {
             _outputFolderTextBox.Text = dialog.SelectedPath;
+            SaveOutputFolderSetting();
         }
     }
 

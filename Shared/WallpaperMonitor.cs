@@ -104,22 +104,30 @@ public class WallpaperMonitor : IDisposable
         try
         {
             var fileName = Path.GetFileName(wallpaperPath);
-            var directory = Path.GetDirectoryName(wallpaperPath);
-            var configuredOutputDirectory = Settings.WallpaperOutputDirectory;
+            var normalizedWallpaperDirectory = NormalizeDirectoryPath(Path.GetDirectoryName(wallpaperPath));
+            var normalizedOutputDirectory = NormalizeDirectoryPath(Settings.WallpaperOutputDirectory);
+            var isKnownWallpaperFile =
+                string.Equals(fileName, "WorldMap01.jpg", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(fileName, "WorldMap02.jpg", StringComparison.OrdinalIgnoreCase);
 
-            if (string.Equals(fileName, "WorldMap01.jpg", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(fileName, "WorldMap02.jpg", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-
-            return !string.IsNullOrWhiteSpace(configuredOutputDirectory) &&
-                   string.Equals(directory, configuredOutputDirectory, StringComparison.OrdinalIgnoreCase);
+            return isKnownWallpaperFile &&
+                   !string.IsNullOrWhiteSpace(normalizedWallpaperDirectory) &&
+                   !string.IsNullOrWhiteSpace(normalizedOutputDirectory) &&
+                   string.Equals(normalizedWallpaperDirectory, normalizedOutputDirectory, StringComparison.OrdinalIgnoreCase);
         }
         catch
         {
             return false;
         }
+    }
+
+    private static string? NormalizeDirectoryPath(string? directoryPath)
+    {
+        if (string.IsNullOrWhiteSpace(directoryPath))
+            return null;
+
+        return Path.GetFullPath(directoryPath)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
     }
 
     /// <summary>
