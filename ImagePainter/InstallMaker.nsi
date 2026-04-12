@@ -131,9 +131,10 @@ FunctionEnd
 Function un.onInit
     SetRegView 64
     StrCpy $RemoveUserData 0
+    StrCpy $INSTDIR $EXEDIR
 
-    Call un.EnsureUninstallPrivileges
     Call un.ResolveInstallScope
+    Call un.EnsureUninstallPrivileges
 FunctionEnd
 
 Function PreWelcomePage
@@ -507,13 +508,12 @@ Function un.DeleteScheduledTask
 FunctionEnd
 
 Function un.EnsureUninstallPrivileges
-    ReadRegStr $0 HKLM "${UNINSTALL_REGKEY}" "InstallLocation"
-    ${If} $0 == $INSTDIR
+    ${If} $InstallContextScope == "AllUsers"
         UserInfo::GetAccountType
         Pop $1
         ${If} $1 != "Admin"
             MessageBox MB_ICONINFORMATION|MB_OK "Uninstalling the machine-wide installation requires administrator rights. The uninstaller will now restart elevated."
-            ExecShell "runas" "$INSTDIR\Uninstall.exe"
+            ExecShell "runas" "$EXEPATH"
             Quit
         ${EndIf}
     ${EndIf}

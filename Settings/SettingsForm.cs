@@ -500,13 +500,6 @@ public partial class SettingsForm : Form
             : _outputFolderTextBox.Text.Trim();
     }
 
-    private void SaveOutputFolderSetting()
-    {
-        Shared.Settings.WallpaperOutputDirectory = string.IsNullOrWhiteSpace(_outputFolderTextBox.Text)
-            ? Environment.GetFolderPath(Environment.SpecialFolder.MyPictures)
-            : _outputFolderTextBox.Text.Trim();
-    }
-
     // Event handlers
     private void OnSettingChanged(object? sender, EventArgs e) => SaveSettings();
 

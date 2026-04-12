@@ -363,6 +363,7 @@ MigrationBackup/
 FodyWeavers.xsd
 
 # Custom exclusions
+.vs/
 .claude/
 CLAUDE.md
 AGENTS.md
